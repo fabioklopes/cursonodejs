@@ -4,7 +4,7 @@ const { engine } = require('express-handlebars');
 const app = express();
 
 
-// engine de template
+// engine de template de visualização
 app.engine('handlebars', engine({
     defaultLayout: 'main',
     layoutsDir: path.join(__dirname, 'views', 'layouts')
@@ -12,9 +12,12 @@ app.engine('handlebars', engine({
 
 
 // rota principal
-app.get('/', (req, res) => {
+app.get('/:nome', (req, res) => {
     res.render('index', {
         title: 'Gerenciador de Presenças',
+        context: {
+            nome: req.params.nome
+        }
     });
 });
 
