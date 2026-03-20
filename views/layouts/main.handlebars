@@ -1,23 +1,91 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <title>{{title}}</title>
-</head>
-<body>
-    <div class="container mt-2 p-1">
-        <div class="navbar nav">
-            <a href="/"><li class="nav nav-item">Home</li></a>
-        </div>
+        <title>Sistema Oss - Gestão de Jiu-jitsu</title>
+    </head>
 
-        <div class="mt-4">
-            {{{body}}}
+    <body>
+        <div class="container mt-2 p-1">
+            <nav class="navbar navbar-expand-lg bg-body-tertiary border-bottom border-3 border-primary">
+                <div class="container-fluid">
+
+                    <a class="navbar-brand" href="/">CRTN Belém</a>
+
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="collapse navbar-collapse" id="navbarNav">
+                        <ul class="navbar-nav w-100">
+
+                            <!-- Dashboard: ambos perfis terão acesso -->
+                            <li class="nav-item">
+                                <a class="nav-link" href="/dashboard">
+                                    <i class="fa-solid fa-layer-group"></i> CENTRAL
+                                </a>
+                            </li>
+
+
+                            <!-- Portal: verificar o nível do acesso e prover as opções do menu -->
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown">
+                                    <i class="fa-solid fa-graduation-cap"></i> PORTAL DO ALUNO
+                                </a>
+
+                                <ul class="dropdown-menu">
+                                    <li class="dropdown-header text-muted">Para você</li>
+                                    <li>
+                                        <a class="dropdown-item" href="#">
+                                            <i class="fa-solid fa-clipboard-user"></i> Meu Perfil
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li class="dropdown-header text-muted">Você no controle</li>
+                                    <li><a class="dropdown-item" href="#"><i class="fa-solid fa-calendar-check"></i>
+                                            Controle de Presença</a></li>
+                                    <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-line"></i> Meu
+                                            Progresso</a></li>
+                                    <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-pie"></i>
+                                            Relatórios</a></li>
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+
+                                    <!-- habilitar este menu caso ele seja titular de outras contas -->
+                                    <li class="dropdown-header text-muted">Gerenciar contas</li>
+                                    <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta:
+                                            dependente 1</a></li>
+                                    <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta:
+                                            dependente 2</a></li>
+                                    <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta:
+                                            dependente 3</a></li>
+
+                                    <li>
+                                        <hr class="dropdown-divider">
+                                    </li>
+                                    <li class="dropdown-header text-muted">Sair do sistema</li>
+                                    <li><a class="dropdown-item text-danger" href="#"><i
+                                                class="fa-solid fa-person-walking-arrow-right"></i> Encerrar</a></li>
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="mt-5 mb-3">
+                {{{body}}}
+            </div>
         </div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js"></script>
-</body>
+        <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js"></script>
+    </body>
+
 </html>

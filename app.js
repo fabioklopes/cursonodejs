@@ -1,48 +1,56 @@
 const express = require('express');
-const path = require('path');
-const { engine } = require('express-handlebars');
 const app = express();
+const { engine } = require('express-handlebars');
+const Sequelize = require('sequelize');
 
 
-// engine de template de visualização
-app.engine('handlebars', engine({
-    defaultLayout: 'main',
-    layoutsDir: path.join(__dirname, 'views', 'layouts')
-}));
-
-
-// rota principal
-app.get('/:nome', (req, res) => {
-    res.render('index', {
-        title: 'Gerenciador de Presenças',
-        context: {
-            nome: req.params.nome
-        }
-    });
+// conexão com o banco de dados
+const sequelize = new Sequelize('db_academia_v2', 'root', '5tgb6yhn', {
+    host: '127.0.0.1',
+    dialect: 'mysql'
 });
 
 
-// cadastro de alunos
+// rota principal
+app.get('/', (req, res) => {
+    res.render('index');
+});
+
+
+// ALUNOS
 app.get('/aluno', function(req, res) {
-    res.sendFile(path.join(__dirname, 'views', 'aluno.html'));
+    res.render('aluno');
+});
+app.get('/aluno/novo', (req, res) => {
+    res.render('formnovoaluno');
+});
+app.post('/aluno/cadastrar', (req, res) => {
+    res.send('Formulário recebido');
+});
+app.get('/aluno/editar/:id', (req, res) => {
+    // const alunoId = req.params.id;
+    // res.render('formeditaraluno', { id: alunoId });
+    pass
 });
 
 
 // solicitação de presença
 app.get('/presenca', function(req, res) {
-    res.sendFile(path.join(__dirname, 'views', 'presenca.html'));
+    res.render('presenca');
 });
 
 
 // login
 app.get('/login', function(req, res) {
-    res.sendFile(path.join(__dirname, 'views', 'login.html'));
+    res.render('login');
 });
 
 
-// configurações de template execução da aplicação
+// ### CONFIGURAÇÕES GERAIS ### 
+// engine de template de visualização
+app.engine('handlebars', engine({ defaultLayout: 'main' }));
 app.set('view engine', 'handlebars');
-app.set('views', path.join(__dirname, 'views'));
+
 
 app.listen(8080, function() {
     console.clear();

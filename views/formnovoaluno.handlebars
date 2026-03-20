@@ -1,0 +1,78 @@
+<h3><i class="fa-solid fa-user-plus"></i> Novo Aluno</h3>
+<form action="/aluno/cadastrar" method="POST" enctype="multipart/form-data">
+    <div class="form-floating mb-3">
+        <input type="text" class="form-control" id="firstName" placeholder="">
+        <label for="firstName">Primeiro nome</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="text" class="form-control" id="lastName" placeholder="">
+        <label for="lastName">Restante do nome</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="email" class="form-control" id="email" placeholder="">
+        <label for="email">E-mail</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="password" class="form-control" id="password1" placeholder="">
+        <label for="password1">Senha</label>
+    </div>
+    
+    <div class="form-floating mb-3">
+        <input type="password" class="form-control" id="password2" placeholder="">
+        <label for="password">Repita a sua senha</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="phone" class="form-control" id="phone" placeholder="">
+        <label for="phone">WhatsApp (apenas números)</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="date" class="form-control" id="birthdate" placeholder="">
+        <label for="birthdate">Aniversário</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <select class="form-select" id="actualbelt" aria-label="">
+            <option selected>-- Selecione --</option>
+            <option value="white">Branca</option>
+
+            <option value="gray-white">Cinza e Branca</option>
+            <option value="gray">Cinza</option>
+            <option value="gray-black">Cinza e Preta</option>
+
+            <option value="yellow-white">Amarela e Branca</option>
+            <option value="yellow">Amarela</option>
+            <option value="yellow-black">Amarela e Preta</option>
+
+            <option value="orange-white">Laranja e Branca</option>
+            <option value="orange">Laranja</option>
+            <option value="orange-black">Laranja e Preta</option>
+
+            <option value="green-white">Verde e Branca</option>
+            <option value="green">Verde</option>
+            <option value="green-black">Verde e Preta</option>
+
+            <option value="blue">Azul</option>
+            <option value="purple">Roxa</option>
+            <option value="brown">Marrom</option>
+            <option value="black">Preta</option>
+        </select>
+        <label for="actualbelt">Faixa Atual</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="number" min="0" max="6" class="form-control" id="degree" placeholder="">
+        <label for="degree">Grau (se não tiver grau, coloque zero)</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="file" class="form-control" id="photo" placeholder="">
+        <label for="photo">Envie uma foto sua</label>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Enviar</button>    
+</form>
