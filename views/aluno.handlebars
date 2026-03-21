@@ -1,1 +1,36 @@
+{{#if mensagem}}
+    <div class="alert alert-primary" role="alert">
+        {{mensagem}}
+    </div>
+{{/if}}
+
 <h1>Página Aluno</h1>
+<table class="table">
+    <tr>
+        <th>Nome</th>
+        <th>E-mail</th>
+        <th>Perfil</th>
+        <th>WhatsApp</th>
+        <th>Aniversário</th>
+        <th>Faixa</th>
+        <th>Wagi</th>
+        <th>Zubon</th>
+        <th>Obi</th>
+        <th>Dependente</th>
+    </tr>
+        {{#each usuarios}}
+    <tr>
+        <td>{{first_name}} {{last_name}}</td>
+        <td>{{email}}</td>
+        <td>{{role}}</td>
+        <td>{{phone}}</td>
+        <td>{{birth_date}}</td>
+        <td>{{actual_belt}}</td>
+        <td>{{wagi_size}}</td>
+        <td>{{zubon_size}}</td>
+        <td>{{obi_size}}</td>
+        <td>{{responsible_id}}</td>
+    </tr>
+    {{/each}}
+
+</table>

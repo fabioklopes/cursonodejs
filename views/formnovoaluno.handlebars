@@ -1,42 +1,43 @@
-<h3><i class="fa-solid fa-user-plus"></i> Novo Aluno</h3>
+<h3 class="mb-5"><i class="fa-solid fa-user-plus"></i> Novo Aluno</h3>
 <form action="/aluno/cadastrar" method="POST" enctype="multipart/form-data">
+
     <div class="form-floating mb-3">
-        <input type="text" class="form-control" id="firstName" placeholder="">
+        <input type="text" class="form-control" name="first_name" placeholder="">
         <label for="firstName">Primeiro nome</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="text" class="form-control" id="lastName" placeholder="">
+        <input type="text" class="form-control" name="last_name" placeholder="">
         <label for="lastName">Restante do nome</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="email" class="form-control" id="email" placeholder="">
+        <input type="email" class="form-control" name="email" placeholder="">
         <label for="email">E-mail</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="password" class="form-control" id="password1" placeholder="">
+        <input type="password" class="form-control" name="password1" placeholder="">
         <label for="password1">Senha</label>
     </div>
     
     <div class="form-floating mb-3">
-        <input type="password" class="form-control" id="password2" placeholder="">
+        <input type="password" class="form-control" name="password2" placeholder="">
         <label for="password">Repita a sua senha</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="phone" class="form-control" id="phone" placeholder="">
+        <input type="phone" class="form-control" name="phone" placeholder="">
         <label for="phone">WhatsApp (apenas números)</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="date" class="form-control" id="birthdate" placeholder="">
-        <label for="birthdate">Aniversário</label>
+        <input type="date" class="form-control" name="birth_date" placeholder="">
+        <label for="birth_date">Aniversário</label>
     </div>
 
     <div class="form-floating mb-3">
-        <select class="form-select" id="actualbelt" aria-label="">
+        <select class="form-select" name="actual_belt" aria-label="">
             <option selected>-- Selecione --</option>
             <option value="white">Branca</option>
 
@@ -61,18 +62,152 @@
             <option value="brown">Marrom</option>
             <option value="black">Preta</option>
         </select>
-        <label for="actualbelt">Faixa Atual</label>
+        <label for="actual_belt">Faixa Atual</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="number" min="0" max="6" class="form-control" id="degree" placeholder="">
-        <label for="degree">Grau (se não tiver grau, coloque zero)</label>
+        <input type="number" min="0" max="6" class="form-control" name="actual_degree" placeholder="">
+        <label for="actual_degree">Grau (se não tiver grau, coloque zero)</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="file" class="form-control" id="photo" placeholder="">
-        <label for="photo">Envie uma foto sua</label>
+        <input type="text" class="form-control" name="wagi_size" placeholder="">
+        <label for="wagi_size">Tamanho do casaco do kimono</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="text" class="form-control" name="zubon_size" placeholder="">
+        <label for="zubon_size">Tamanho da calça do kimono</label>
+    </div>
+
+    <div class="form-floating mb-3">
+        <input type="text" class="form-control" name="obi_size" placeholder="">
+        <label for="obi_size">Tamanho da faixa</label>
+    </div>
+
+    <div class="mb-3">
+        <label for="photo-input" class="form-label"><i class="fa-solid fa-image"></i> Envie uma foto sua, de rosto, para o seu avatar de perfil</label>
+        <input type="file" class="form-control" id="photo-input" name="photo" accept="image/*" placeholder="">
+        <small class="form-text text-muted">Máximo 1MB. Enquadre seu rosto em uma área de 200x200 pixels.</small>
+    </div>
+
+    <!-- Preview e Cropper -->
+    <div id="crop-container" class="mb-3" style="display: none;">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Ajuste sua foto</h6>
+                <div style="max-height: 400px; overflow: hidden; margin-bottom: 15px;">
+                    <img id="cropper-image" style="max-width: 100%;" />
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-secondary" id="rotate-left"><i class="fa-solid fa-rotate-left"></i> Girar</button>
+                    <button type="button" class="btn btn-sm btn-success" id="crop-confirm"><i class="fa-solid fa-check"></i> Usar esta imagem</button>
+                    <button type="button" class="btn btn-sm btn-danger" id="crop-cancel"><i class="fa-solid fa-times"></i> Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview da imagem recortada -->
+    <div id="preview-container" class="mb-3" style="display: none;">
+        <label class="form-label">Prévia da sua foto:</label>
+        <div style="width: 200px; height: 200px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;">
+            <img id="preview-image" style="width: 100%; height: 100%; object-fit: cover;" />
+        </div>
+        <input type="hidden" id="photo-data" />
     </div>
 
     <button type="submit" class="btn btn-primary">Enviar</button>    
 </form>
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const photoInput = document.getElementById('photo-input');
+    const cropContainer = document.getElementById('crop-container');
+    const cropperImage = document.getElementById('cropper-image');
+    const previewContainer = document.getElementById('preview-container');
+    const previewImage = document.getElementById('preview-image');
+    const photoData = document.getElementById('photo-data');
+    const rotateLeftBtn = document.getElementById('rotate-left');
+    const cropConfirmBtn = document.getElementById('crop-confirm');
+    const cropCancelBtn = document.getElementById('crop-cancel');
+    
+    let cropper = null;
+
+    photoInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            cropperImage.src = event.target.result;
+            cropContainer.style.display = 'block';
+            previewContainer.style.display = 'none';
+            
+            if (cropper) {
+                cropper.destroy();
+            }
+            
+            cropper = new Cropper(cropperImage, {
+                aspectRatio: 1,
+                viewMode: 1,
+                autoCropArea: 1,
+                responsive: true,
+                guides: true,
+                highlight: true,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: true,
+            });
+        };
+        reader.readAsDataURL(file);
+    });
+
+    rotateLeftBtn.addEventListener('click', function() {
+        if (cropper) {
+            cropper.rotate(-90);
+        }
+    });
+
+    cropConfirmBtn.addEventListener('click', function() {
+        if (!cropper) return;
+
+        const canvas = cropper.getCroppedCanvas({
+            maxWidth: 200,
+            maxHeight: 200,
+            fillColor: '#fff',
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high',
+        });
+
+        // Mostrar prévia
+        previewImage.src = canvas.toDataURL();
+        previewImage.style.borderRadius = '8px';
+        
+        // Converter canvas para blob e criar arquivo
+        canvas.toBlob(function(blob) {
+            const file = new File([blob], 'photo.jpg', { type: 'image/jpeg' });
+            const dataTransfer = new DataTransfer();
+            dataTransfer.items.add(file);
+            photoInput.files = dataTransfer.files;
+            photoData.value = canvas.toDataURL();
+            
+            cropContainer.style.display = 'none';
+            previewContainer.style.display = 'block';
+        }, 'image/jpeg', 0.95);
+    });
+
+    cropCancelBtn.addEventListener('click', function() {
+        photoInput.value = '';
+        cropContainer.style.display = 'none';
+        previewContainer.style.display = 'none';
+        if (cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+    });
+});
+</script>
