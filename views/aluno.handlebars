@@ -1,36 +1,39 @@
 {{#if mensagem}}
-    <div class="alert alert-primary" role="alert">
+    <div class="alert alert-primary text-center" role="alert">
         {{mensagem}}
     </div>
 {{/if}}
 
 <h1>Página Aluno</h1>
-<table class="table">
-    <tr>
-        <th>Nome</th>
-        <th>E-mail</th>
-        <th>Perfil</th>
-        <th>WhatsApp</th>
-        <th>Aniversário</th>
-        <th>Faixa</th>
-        <th>Wagi</th>
-        <th>Zubon</th>
-        <th>Obi</th>
-        <th>Dependente</th>
-    </tr>
+<table class="table table-striped align-middle table-mobile-stack">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>E-mail</th>
+            <th>Perfil</th>
+            <th>WhatsApp</th>
+            <th>Aniversário</th>
+            <th>Faixa</th>
+            <th>Wagi</th>
+            <th>Zubon</th>
+            <th>Obi</th>
+            <th>Dependente</th>
+        </tr>
+    </thead>
+    <tbody>
         {{#each usuarios}}
-    <tr>
-        <td>{{first_name}} {{last_name}}</td>
-        <td>{{email}}</td>
-        <td>{{role}}</td>
-        <td>{{phone}}</td>
-        <td>{{birth_date}}</td>
-        <td>{{actual_belt}}</td>
-        <td>{{wagi_size}}</td>
-        <td>{{zubon_size}}</td>
-        <td>{{obi_size}}</td>
-        <td>{{responsible_id}}</td>
-    </tr>
-    {{/each}}
-
+            <tr>
+                <td data-label="Nome">{{first_name}} {{last_name}}</td>
+                <td data-label="E-mail">{{email}}</td>
+                <td data-label="Perfil">{{role_label}}</td>
+                <td data-label="WhatsApp">{{phone}}</td>
+                <td data-label="Aniversário">{{birth_date}}</td>
+                <td data-label="Faixa">{{actual_belt}}</td>
+                <td data-label="Wagi">{{wagi_size}}</td>
+                <td data-label="Zubon">{{zubon_size}}</td>
+                <td data-label="Obi">{{obi_size}}</td>
+                <td data-label="Dependente">{{responsible_id}}</td>
+            </tr>
+        {{/each}}
+    </tbody>
 </table>

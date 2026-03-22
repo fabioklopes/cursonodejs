@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const app = express();
 const { engine } = require('express-handlebars');
 const bodyParser = require('body-parser');
@@ -75,7 +75,13 @@ app.get('/aluno', function(req, res) {
         where: { active: true },
         order: [['first_name', 'ASC']]
     }).then(function(usuarios) {
-        const lista = usuarios.map((u) => u.get({ plain: true }));
+        const lista = usuarios.map((u) => {
+            const usuario = u.get({ plain: true });
+            return {
+                ...usuario,
+                role_label: usuario.role === 'STD' ? 'Aluno' : usuario.role === 'PRO' ? 'Professor' : usuario.role
+            };
+        });
         res.render('aluno', {
             mensagem: req.query.mensagem || '',
             usuarios: lista
@@ -150,25 +156,37 @@ app.get('/aluno/editar/:id', (req, res) => {
 });
 
 
-// solicitaÃ§Ã£o de presenÃ§a
+// solicitação de presença
 app.get('/presenca', function(req, res) {
     res.render('presenca');
 });
 
 
 // login
-app.get('/login', function(req, res) {
+app.get('/auth/login', function(req, res) {
     res.render('login');
+});
+app.post('/auth/verify', function(req, res) {
+    const { email, password } = req.body;
+    Usuario.findOne({ where: { email, password } }).then(function(usuario) {
+        if (usuario) {
+            res.send('Login bem-sucedido! Bem-vindo, ' + usuario.first_name + ' ' + usuario.last_name);
+        } else {
+            res.send('Credenciais inválidas. Tente novamente.');
+        }
+    }).catch(function(err) {
+        res.send('Erro ao verificar credenciais: ' + err.message);
+    });
 });
 
 
-// ### CONFIGURAÃ‡Ã•ES GERAIS ### 
-// engine de template de visualizaÃ§Ã£o
+// ### CONFIGURAÇÕES GERAIS ### 
+// engine de template de visualização
 app.engine('handlebars', engine({ defaultLayout: 'main' }));
 app.set('view engine', 'handlebars');
 
 
-// execuÃ§Ã£o do servidor
+// execução do servidor
 app.listen(8080, function() {
     console.clear();
     console.log('Servidor funcionando...');
