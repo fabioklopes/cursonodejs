@@ -4,7 +4,7 @@
         "dev": "nodemon app.js"
     },
     "dependencies": {
-        "bcrypt": "^6.0.0",
+        "argon2": "^0.44.0",
         "body-parser": "^2.2.2",
         "express": "^5.2.1",
         "express-handlebars": "^8.0.6",
