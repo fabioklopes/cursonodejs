@@ -95,7 +95,7 @@ app.get('/aluno', function(req, res) {
 });
 
 app.get('/aluno/novo', (req, res) => {
-    res.render('formnovoaluno');
+    res.render('formnovousuario');
 });
 
 app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
