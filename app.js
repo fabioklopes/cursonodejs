@@ -30,6 +30,40 @@ app.use(session({
 
 app.use((req, res, next) => {
     res.locals.usuarioLogado = req.session.usuario || null;
+    res.locals.viewingAs = req.session.viewingAs || null;
+
+    const role = req.session.usuario ? req.session.usuario.role : null;
+    if (role === 'ADM') {
+        res.locals.portalMenuTitulo = 'PORTAL DO ADMINISTRADOR';
+    } else if (role === 'PRO') {
+        res.locals.portalMenuTitulo = 'PORTAL DO PROFESSOR';
+    } else {
+        res.locals.portalMenuTitulo = 'PORTAL DO ALUNO';
+    }
+
+    res.locals.useProfessorMenu = role === 'PRO' || role === 'ADM';
+    next();
+});
+
+// Carrega lista de dependentes do titular logado para o menu
+app.use(async (req, res, next) => {
+    const usuario = req.session.usuario;
+    if (usuario && !req.session.viewingAs) {
+        try {
+            const dependentes = await Usuario.findAll({
+                where: { responsible_id: usuario.id },
+                attributes: ['id', 'first_name', 'last_name'],
+                order: [['first_name', 'ASC']]
+            });
+            res.locals.dependentes = dependentes.length > 0
+                ? dependentes.map(d => d.get({ plain: true }))
+                : null;
+        } catch (_err) {
+            res.locals.dependentes = null;
+        }
+    } else {
+        res.locals.dependentes = null;
+    }
     next();
 });
 
@@ -38,6 +72,7 @@ function isPublicRoute(pathname) {
         || pathname === '/auth/verify'
         || pathname === '/aluno/novo'
         || pathname === '/aluno/cadastrar'
+        || pathname === '/aluno/verificar-titular'
         || pathname.startsWith('/uploads/');
 }
 
@@ -296,6 +331,64 @@ app.get('/aluno', function(req, res) {
     });
 });
 
+// Verifica se o e-mail pertence a um titular ativo (chamada AJAX pública)
+app.post('/aluno/verificar-titular', async (req, res) => {
+    const email = (req.body.email || '').trim().toLowerCase();
+    if (!email) {
+        return res.json({ ok: false, mensagem: 'Informe o e-mail.' });
+    }
+
+    try {
+        const titular = await Usuario.findOne({
+            where: { email, user_status: 'A', responsible_id: null }
+        });
+
+        if (!titular) {
+            return res.json({ ok: false, mensagem: 'E-mail não encontrado ou o usuário ainda não foi aprovado.' });
+        }
+
+        return res.json({ ok: true, id: titular.id, first_name: titular.first_name, last_name: titular.last_name });
+    } catch (err) {
+        return res.json({ ok: false, mensagem: 'Erro ao verificar: ' + err.message });
+    }
+});
+
+// Troca a visualização para a conta de um dependente
+app.get('/conta/trocar/:id', async (req, res) => {
+    const dependenteId = parseInt(req.params.id, 10);
+    const usuarioLogado = req.session.usuario;
+
+    if (!usuarioLogado) {
+        return res.redirect('/auth/login');
+    }
+
+    try {
+        const dependente = await Usuario.findByPk(dependenteId);
+        if (!dependente || dependente.responsible_id !== usuarioLogado.id) {
+            const mensagem = 'Dependente não encontrado ou sem permissão.';
+            return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+        }
+
+        req.session.viewingAs = {
+            id: dependente.id,
+            first_name: dependente.first_name,
+            last_name: dependente.last_name,
+            responsible_id: dependente.responsible_id
+        };
+
+        return res.redirect('/aluno');
+    } catch (err) {
+        const mensagem = 'Erro ao trocar conta: ' + err.message;
+        return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+});
+
+// Volta para a conta titular
+app.get('/conta/voltar', (req, res) => {
+    req.session.viewingAs = null;
+    return res.redirect('/aluno');
+});
+
 app.get('/aluno/novo', (req, res) => {
     const vm = buildUserFormViewModel(null, false);
     vm.mensagem = req.query.mensagem || '';
@@ -304,6 +397,24 @@ app.get('/aluno/novo', (req, res) => {
 
 app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
     try {
+        const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
+        const isDependent = !!responsibleId;
+
+        // Validar titular se for dependente
+        if (isDependent) {
+            const titular = await Usuario.findByPk(responsibleId);
+            if (!titular || titular.user_status !== 'A' || titular.responsible_id !== null) {
+                if (req.file) {
+                    const tempFilePath = path.join(uploadsDir, req.file.filename);
+                    if (fs.existsSync(tempFilePath)) {
+                        await fs.promises.unlink(tempFilePath);
+                    }
+                }
+                const mensagem = 'Conta titular inválida ou não encontrada.';
+                return res.redirect(`/aluno/novo?mensagem=${encodeURIComponent(mensagem)}`);
+            }
+        }
+
         const senha = req.body.password2 || '';
 
         if (!req.body.password1 || req.body.password1 !== senha) {
@@ -332,10 +443,16 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
 
         const passwordHash = await argon2.hash(senha);
 
+        // E-mail para dependente: gerado internamente se não fornecido
+        let emailFinal = (req.body.email || '').trim();
+        if (isDependent && !emailFinal) {
+            emailFinal = `dep_${Date.now()}_${responsibleId}@interno.oss`;
+        }
+
         const usuario = await Usuario.create({
             first_name: req.body.first_name,
             last_name: req.body.last_name,
-            email: req.body.email,
+            email: emailFinal,
             password: passwordHash,
             role: 'STD',
             user_status: 'P',
@@ -345,7 +462,8 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             actual_degree: req.body.actual_degree,
             wagi_size: req.body.wagi_size,
             zubon_size: req.body.zubon_size,
-            obi_size: req.body.obi_size
+            obi_size: req.body.obi_size,
+            responsible_id: responsibleId || null
         });
 
         if (req.file) {
@@ -355,12 +473,12 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             console.log(`Imagem temporária salva: ${req.file.filename}`);
         }
 
-        const mensagem = 'Aluno criado com sucesso.';
+        const mensagem = isDependent ? 'Cadastro de dependente enviado com sucesso.' : 'Aluno criado com sucesso.';
         res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
     } catch (err) {
         console.error('Erro no cadastro:', err);
         const mensagem = 'Erro ao criar aluno: ' + err.message;
-        res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+        res.redirect(`/aluno/novo?mensagem=${encodeURIComponent(mensagem)}`);
     }
 });
 
@@ -610,7 +728,10 @@ app.post('/auth/logout', function(req, res) {
 
 // ### CONFIGURAÇÕES GERAIS ### 
 // engine de template de visualização
-app.engine('handlebars', engine({ defaultLayout: 'main' }));
+app.engine('handlebars', engine({
+    defaultLayout: 'main',
+    partialsDir: [path.join(__dirname, 'views', 'layouts')]
+}));
 app.set('view engine', 'handlebars');
 
 

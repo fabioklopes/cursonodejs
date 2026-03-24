@@ -11,10 +11,12 @@
 
 <form action="{{formAction}}" method="POST" enctype="multipart/form-data">
 
-    <!-- Bloco de escolha: Conta Única / Conta Dependentes -->
-    <div class="row mb-4 text-center g-2 justify-content-center">
+    {{#unless isEditMode}}
+    <!-- Bloco de escolha: Para mim / Dependentes -->
+    <div class="row mb-4 text-center g-2 justify-content-center" id="tipo-conta-cards">
         <div class="col-6 col-md-6 d-flex">
-            <div class="card w-100 h-100">
+            <div class="card w-100 h-100 border-2 selectable-card" id="card-para-mim" role="button" tabindex="0"
+                 style="cursor:pointer;">
                 <div class="card-body">
                     <i class="fa-solid fa-person fa-2xl text-primary"></i> <br><br>
                     <h5 class="card-title">Para mim</h5>
@@ -23,7 +25,8 @@
             </div>
         </div>
         <div class="col-6 col-md-6 d-flex">
-            <div class="card w-100 h-100">
+            <div class="card w-100 h-100 border-2 selectable-card" id="card-dependente" role="button" tabindex="0"
+                 style="cursor:pointer;">
                 <div class="card-body">
                     <i class="fa-solid fa-hands-holding-child fa-2xl text-success"></i> <br><br>
                     <h5 class="card-title">Dependentes</h5>
@@ -33,7 +36,44 @@
         </div>
     </div>
 
+    <!-- Bloco de verificação do e-mail do titular (só aparece ao clicar em Dependentes) -->
+    <div id="verificar-titular-container" class="mb-4" style="display:none;">
+        <div class="card border-success">
+            <div class="card-body">
+                <h6 class="card-title text-success">
+                    <i class="fa-solid fa-circle-check"></i> Verificação da conta titular
+                </h6>
+                <p class="text-muted small">Informe o e-mail da conta responsável (titular). Ela precisa estar ativa no sistema.</p>
 
+                <div id="verificar-form-group">
+                    <div class="input-group mb-2">
+                        <input type="email" class="form-control" id="titular-email-input"
+                               placeholder="E-mail do titular" autocomplete="off">
+                        <button type="button" class="btn btn-success" id="btn-verificar-titular">
+                            <i class="fa-solid fa-magnifying-glass"></i> Verificar
+                        </button>
+                    </div>
+                    <div id="titular-feedback" class="form-text"></div>
+                </div>
+
+                <!-- Exibido após verificação com sucesso -->
+                <div id="titular-verificado-info" style="display:none;" class="alert alert-success py-2 mb-0">
+                    <i class="fa-solid fa-circle-check"></i>
+                    Titular verificado: <strong id="titular-nome"></strong>
+                    <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-2" id="btn-trocar-titular">
+                        trocar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{/unless}}
+
+    <!-- Campo hidden para responsible_id (dependente) -->
+    <input type="hidden" name="responsible_id" id="responsible-id-input" value="">
+
+    <!-- Formulário principal (oculto até o usuário escolher o tipo de conta no modo de cadastro) -->
+    <div id="form-fields-container" style="{{#if isEditMode}}display:block{{else}}display:none{{/if}}">
     <div class="form-floating mb-3">
         <input type="text" class="form-control" name="first_name" value="{{usuario.first_name}}" placeholder="" {{#if isEditMode}}readonly{{/if}}>
         <label for="firstName">Primeiro nome</label>
@@ -45,8 +85,11 @@
     </div>
 
     <div class="form-floating mb-3">
-        <input type="email" class="form-control" name="email" value="{{usuario.email}}" placeholder="" required>
+        <input type="email" class="form-control" name="email" id="email-input" value="{{usuario.email}}" placeholder="" required>
         <label for="email">E-mail</label>
+        <div class="form-text text-muted" id="email-hint-dependente" style="display:none;">
+            Para dependentes, o e-mail é opcional. Se não preenchido, será gerado automaticamente.
+        </div>
     </div>
 
     <div class="form-floating mb-3">
@@ -156,6 +199,9 @@
     </div>
 
     <button type="submit" class="btn btn-primary">{{submitLabel}}</button>
+
+    <!-- Fecha form-fields-container (novo) ou div vazio de editMode -->
+    </div>
 </form>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
@@ -249,3 +295,126 @@
         });
     });
 </script>
+
+{{#unless isEditMode}}
+<script>
+    (function () {
+        const cardParaMim    = document.getElementById('card-para-mim');
+        const cardDependente = document.getElementById('card-dependente');
+        const verificarContainer = document.getElementById('verificar-titular-container');
+        const formFieldsContainer = document.getElementById('form-fields-container');
+        const responsibleIdInput  = document.getElementById('responsible-id-input');
+        const emailInput          = document.getElementById('email-input');
+        const emailHintDep        = document.getElementById('email-hint-dependente');
+        const titularEmailInput   = document.getElementById('titular-email-input');
+        const btnVerificar        = document.getElementById('btn-verificar-titular');
+        const titularFeedback     = document.getElementById('titular-feedback');
+        const titularVerificadoInfo = document.getElementById('titular-verificado-info');
+        const titularNome         = document.getElementById('titular-nome');
+        const btnTrocarTitular    = document.getElementById('btn-trocar-titular');
+
+        function selecionarCard(cardSelecionado, cardOutro) {
+            cardSelecionado.classList.add('border-primary', 'bg-primary-subtle');
+            cardOutro.classList.remove('border-primary', 'bg-primary-subtle', 'border-success', 'bg-success-subtle');
+        }
+
+        function mostrarFormulario() {
+            formFieldsContainer.style.display = 'block';
+        }
+
+        // Clique em "Para mim"
+        cardParaMim.addEventListener('click', function () {
+            selecionarCard(cardParaMim, cardDependente);
+            verificarContainer.style.display = 'none';
+            responsibleIdInput.value = '';
+            emailInput.required = true;
+            emailInput.readOnly = false;
+            emailHintDep.style.display = 'none';
+            mostrarFormulario();
+        });
+
+        cardParaMim.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cardParaMim.click(); }
+        });
+
+        // Clique em "Dependentes"
+        cardDependente.addEventListener('click', function () {
+            selecionarCard(cardDependente, cardParaMim);
+            cardDependente.classList.remove('border-primary', 'bg-primary-subtle');
+            cardDependente.classList.add('border-success', 'bg-success-subtle');
+            verificarContainer.style.display = 'block';
+            formFieldsContainer.style.display = 'none';
+            responsibleIdInput.value = '';
+            // Redefinir estado do painel de verificação
+            titularVerificadoInfo.style.display = 'none';
+            document.getElementById('verificar-form-group').style.display = 'block';
+            titularFeedback.textContent = '';
+            titularEmailInput.value = '';
+        });
+
+        cardDependente.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cardDependente.click(); }
+        });
+
+        // Botão Verificar titular
+        btnVerificar.addEventListener('click', async function () {
+            const email = titularEmailInput.value.trim();
+            if (!email) {
+                titularFeedback.textContent = 'Informe o e-mail do titular.';
+                titularFeedback.className = 'form-text text-danger';
+                return;
+            }
+
+            btnVerificar.disabled = true;
+            titularFeedback.textContent = 'Verificando...';
+            titularFeedback.className = 'form-text text-muted';
+
+            try {
+                const resp = await fetch('/aluno/verificar-titular', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await resp.json();
+
+                if (data.ok) {
+                    responsibleIdInput.value = data.id;
+                    titularNome.textContent = data.first_name + ' ' + data.last_name;
+                    titularVerificadoInfo.style.display = 'block';
+                    document.getElementById('verificar-form-group').style.display = 'none';
+                    titularFeedback.textContent = '';
+                    // Dependente: e-mail é opcional
+                    emailInput.required = false;
+                    emailHintDep.style.display = 'block';
+                    mostrarFormulario();
+                } else {
+                    titularFeedback.textContent = data.mensagem || 'Titular não encontrado.';
+                    titularFeedback.className = 'form-text text-danger';
+                    btnVerificar.disabled = false;
+                }
+            } catch (_err) {
+                titularFeedback.textContent = 'Erro de conexão. Tente novamente.';
+                titularFeedback.className = 'form-text text-danger';
+                btnVerificar.disabled = false;
+            }
+        });
+
+        titularEmailInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); btnVerificar.click(); }
+        });
+
+        // Botão "trocar" titular
+        btnTrocarTitular.addEventListener('click', function () {
+            responsibleIdInput.value = '';
+            titularVerificadoInfo.style.display = 'none';
+            document.getElementById('verificar-form-group').style.display = 'block';
+            titularEmailInput.value = '';
+            titularFeedback.textContent = '';
+            btnVerificar.disabled = false;
+            formFieldsContainer.style.display = 'none';
+            emailInput.required = true;
+            emailHintDep.style.display = 'none';
+        });
+    })();
+</script>
+{{/unless}}

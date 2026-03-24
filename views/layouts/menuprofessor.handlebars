@@ -1,6 +1,6 @@
 <li class="nav-item dropdown">
     <a class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown">
-        <i class="fa-solid fa-graduation-cap"></i> PORTAL DO PROFESSOR
+        <i class="fa-solid fa-user-tie"></i> {{portalMenuTitulo}}
     </a>
 
     <ul class="dropdown-menu">
@@ -9,23 +9,43 @@
                 <i class="fa-solid fa-clipboard-user"></i> Meu Perfil
             </a>
         </li>
-        
-        
+
         <li><hr class="dropdown-divider"></li>
         <li class="dropdown-header text-muted">Você no controle</li>
         <li><a class="dropdown-item" href="#"><i class="fa-solid fa-calendar-check"></i> Controle de Presença</a></li>
         <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-line"></i> Meu Progresso</a></li>
         <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-pie"></i> Relatórios</a></li>
-        
 
-        {{#if true }}
-        <!-- habilitar este menu caso ele seja titular de outras contas -->
+        {{#if dependentes}}
         <li><hr class="dropdown-divider"></li>
         <li class="dropdown-header text-muted">Gerenciar contas</li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta: dependente 1</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta: dependente 2</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta: dependente 3</a></li>
+        {{#each dependentes}}
+        <li>
+            <a class="dropdown-item" href="/conta/trocar/{{id}}">
+                <i class="fa-solid fa-child"></i> {{first_name}} {{last_name}}
+            </a>
+        </li>
+        {{/each}}
         {{/if}}
+
+        {{#if viewingAs}}
+        <li><hr class="dropdown-divider"></li>
+        <li>
+            <a class="dropdown-item text-warning" href="/conta/voltar">
+                <i class="fa-solid fa-arrow-left"></i> Voltar para minha conta
+            </a>
+        </li>
+        {{/if}}
+
+        <li><hr class="dropdown-divider"></li>
+        <li class="dropdown-header text-muted">Sair do sistema</li>
+        <li>
+            <form action="/auth/logout" method="POST" class="px-3 py-1">
+                <button type="submit" class="dropdown-item text-danger p-0 border-0 bg-transparent text-start">
+                    <i class="fa-solid fa-person-walking-arrow-right"></i> Encerrar
+                </button>
+            </form>
+        </li>
 
     </ul>
 </li>
