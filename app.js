@@ -182,6 +182,45 @@ async function replaceUserPhoto(usuario, tempFileName) {
     }
 }
 
+function getFileNameFromPhotoPath(photoPath) {
+    if (typeof photoPath !== 'string') {
+        return '';
+    }
+
+    return path.basename(photoPath);
+}
+
+function isTempPhotoPath(photoPath) {
+    const fileName = getFileNameFromPhotoPath(photoPath);
+    return fileName.startsWith('temp_');
+}
+
+async function deleteUserTempPhotoIfExists(usuario) {
+    if (!isTempPhotoPath(usuario.photo)) {
+        return false;
+    }
+
+    const fileName = getFileNameFromPhotoPath(usuario.photo);
+    const filePath = path.join(uploadsDir, fileName);
+
+    if (fs.existsSync(filePath)) {
+        await fs.promises.unlink(filePath);
+    }
+
+    usuario.photo = '/uploads/users/default.jpg';
+    await usuario.save();
+    return true;
+}
+
+async function finalizePendingPhotoIfNeeded(usuario) {
+    if (!isTempPhotoPath(usuario.photo)) {
+        return null;
+    }
+
+    const tempFileName = getFileNameFromPhotoPath(usuario.photo);
+    return replaceUserPhoto(usuario, tempFileName);
+}
+
 function buildUserFormViewModel(usuario, isEditMode) {
     const formData = usuario
         ? usuario.get({ plain: true })
@@ -310,14 +349,10 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
         });
 
         if (req.file) {
-            try {
-                const result = await replaceUserPhoto(usuario, req.file.filename);
-                const fileSize = result.fileSize;
-                console.log(`Imagem salva: ${result.finalFileName} (${(fileSize / 1024).toFixed(2)}KB)`);
-            } catch (imageErr) {
-                console.error('Erro ao otimizar imagem:', imageErr);
-                throw new Error('Erro ao processar imagem: ' + imageErr.message);
-            }
+            // Cadastro pendente mantém foto temporária até aprovação.
+            usuario.photo = `/uploads/users/${req.file.filename}`;
+            await usuario.save();
+            console.log(`Imagem temporária salva: ${req.file.filename}`);
         }
 
         const mensagem = 'Aluno criado com sucesso.';
@@ -390,8 +425,15 @@ app.post('/aluno/editar/:id', upload.single('photo'), async (req, res) => {
         await usuario.save();
 
         if (req.file) {
-            const result = await replaceUserPhoto(usuario, req.file.filename);
-            console.log(`Imagem atualizada: ${result.finalFileName} (${(result.fileSize / 1024).toFixed(2)}KB)`);
+            if (usuario.user_status === 'P') {
+                await deleteUserTempPhotoIfExists(usuario);
+                usuario.photo = `/uploads/users/${req.file.filename}`;
+                await usuario.save();
+                console.log(`Imagem temporária atualizada: ${req.file.filename}`);
+            } else {
+                const result = await replaceUserPhoto(usuario, req.file.filename);
+                console.log(`Imagem atualizada: ${result.finalFileName} (${(result.fileSize / 1024).toFixed(2)}KB)`);
+            }
         }
 
         const mensagem = 'Dados do aluno atualizados com sucesso.';
@@ -416,24 +458,60 @@ app.get('/aluno/status/:id', (req, res) => {
     }
 
     const alunoId = req.params.id;
-    Usuario.findByPk(alunoId).then(function(usuario) {
+    Usuario.findByPk(alunoId).then(async function(usuario) {
         if (usuario) {
             if (usuario.user_status !== 'P') {
                 throw new Error('Somente cadastros pendentes podem ser aprovados');
             }
 
             usuario.user_status = 'A';
-            return usuario.save();
+            await usuario.save();
+            const finalizedPhoto = await finalizePendingPhotoIfNeeded(usuario);
+            return finalizedPhoto;
         } else {
             throw new Error('Aluno não encontrado');
         }
-    }).then(function() {
+    }).then(function(finalizedPhoto) {
+        if (finalizedPhoto) {
+            console.log(`Imagem aprovada: ${finalizedPhoto.finalFileName} (${(finalizedPhoto.fileSize / 1024).toFixed(2)}KB)`);
+        }
+
         const mensagem = 'Cadastro aprovado com sucesso.';
         res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
     }).catch(function(err) {
         const mensagem = 'Erro: ' + err.message;
         res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
     });
+});
+
+app.get('/aluno/status/negar/:id', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Apenas professor ou administrador pode negar cadastros.';
+        return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    const alunoId = req.params.id;
+
+    try {
+        const usuario = await Usuario.findByPk(alunoId);
+        if (!usuario) {
+            throw new Error('Aluno não encontrado');
+        }
+
+        if (usuario.user_status !== 'P') {
+            throw new Error('Somente cadastros pendentes podem ser negados');
+        }
+
+        usuario.user_status = 'C';
+        await usuario.save();
+        await deleteUserTempPhotoIfExists(usuario);
+
+        const mensagem = 'Cadastro negado com sucesso.';
+        return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+    } catch (err) {
+        const mensagem = 'Erro: ' + err.message;
+        return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+    }
 });
 
 
