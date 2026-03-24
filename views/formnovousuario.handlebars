@@ -1,5 +1,15 @@
-<h3 class="mb-5"><i class="fa-solid fa-user-plus"></i> Novo Aluno</h3>
-<form action="/aluno/cadastrar" method="POST" enctype="multipart/form-data">
+<h3 class="mb-5">
+    {{#if isEditMode}}
+        <i class="fa-solid fa-user-pen"></i> {{title}}
+    {{else}}
+        <i class="fa-solid fa-user-plus"></i> {{title}}
+    {{/if}}
+</h3>
+{{#if mensagem}}
+    <div class="alert alert-warning text-center alert-autodismiss" role="alert">{{mensagem}}</div>
+{{/if}}
+
+<form action="{{formAction}}" method="POST" enctype="multipart/form-data">
 
     <!-- Bloco de escolha: Conta Única / Conta Dependentes -->
     <div class="row mb-4 text-center g-2 justify-content-center">
@@ -23,94 +33,78 @@
         </div>
     </div>
 
-    <div class="alert alert-danger text-center" role="alert">
-        <b>Todos os campos são obrigatórios.</b> <br>Caso não saiba alguma informação, preencha com "Não tenho" ou "0" (zero).
-    </div>
-
 
     <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="first_name" placeholder="">
+        <input type="text" class="form-control" name="first_name" value="{{usuario.first_name}}" placeholder="" {{#if isEditMode}}readonly{{/if}}>
         <label for="firstName">Primeiro nome</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="last_name" placeholder="">
+        <input type="text" class="form-control" name="last_name" value="{{usuario.last_name}}" placeholder="" {{#if isEditMode}}readonly{{/if}}>
         <label for="lastName">Restante do nome</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="email" class="form-control" name="email" placeholder="">
+        <input type="email" class="form-control" name="email" value="{{usuario.email}}" placeholder="" required>
         <label for="email">E-mail</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="password" class="form-control" name="password1" placeholder="">
-        <label for="password1">Senha</label>
+        <input type="password" class="form-control" name="password1" placeholder="" {{#unless isEditMode}}required{{/unless}}>
+        <label for="password1">{{#if isEditMode}}Nova senha (opcional){{else}}Senha{{/if}}</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="password" class="form-control" name="password2" placeholder="">
-        <label for="password">Repita a sua senha</label>
+        <input type="password" class="form-control" name="password2" placeholder="" {{#unless isEditMode}}required{{/unless}}>
+        <label for="password">{{#if isEditMode}}Repita a nova senha{{else}}Repita a sua senha{{/if}}</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="phone" class="form-control" name="phone" placeholder="">
+        <input type="phone" class="form-control" name="phone" value="{{usuario.phone}}" placeholder="" required>
         <label for="phone">WhatsApp (apenas números)</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="date" class="form-control" name="birth_date" placeholder="">
+        <input type="date" class="form-control" name="birth_date" value="{{usuario.birth_date}}" placeholder="" {{#if isEditMode}}readonly{{else}}required{{/if}}>
         <label for="birth_date">Aniversário</label>
     </div>
 
     <div class="form-floating mb-3">
-        <select class="form-select" name="actual_belt" aria-label="">
-            <option selected>-- Selecione --</option>
-            <option value="white">Branca</option>
-
-            <option value="gray-white">Cinza e Branca</option>
-            <option value="gray">Cinza</option>
-            <option value="gray-black">Cinza e Preta</option>
-
-            <option value="yellow-white">Amarela e Branca</option>
-            <option value="yellow">Amarela</option>
-            <option value="yellow-black">Amarela e Preta</option>
-
-            <option value="orange-white">Laranja e Branca</option>
-            <option value="orange">Laranja</option>
-            <option value="orange-black">Laranja e Preta</option>
-
-            <option value="green-white">Verde e Branca</option>
-            <option value="green">Verde</option>
-            <option value="green-black">Verde e Preta</option>
-
-            <option value="blue">Azul</option>
-            <option value="purple">Roxa</option>
-            <option value="brown">Marrom</option>
-            <option value="black">Preta</option>
+        <select class="form-select" name="actual_belt" aria-label="" required>
+            <option value="">-- Selecione --</option>
+            {{#each beltOptions}}
+                <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
         </select>
         <label for="actual_belt">Faixa Atual</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="number" min="0" max="6" class="form-control" name="actual_degree" placeholder="">
+        <input type="number" min="0" max="6" class="form-control" name="actual_degree" value="{{usuario.actual_degree}}" placeholder="" required>
         <label for="actual_degree">Grau (se não tiver grau, coloque zero)</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="wagi_size" placeholder="">
+        <input type="text" class="form-control" name="wagi_size" value="{{usuario.wagi_size}}" placeholder="" required>
         <label for="wagi_size">Tamanho do Wagi (parte de cima do kimono)</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="zubon_size" placeholder="">
+        <input type="text" class="form-control" name="zubon_size" value="{{usuario.zubon_size}}" placeholder="" required>
         <label for="zubon_size">Tamanho da Zubon (calça do kimono)</label>
     </div>
 
     <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="obi_size" placeholder="">
+        <input type="text" class="form-control" name="obi_size" value="{{usuario.obi_size}}" placeholder="" required>
         <label for="obi_size">Tamanho da faixa</label>
     </div>
+
+    {{#if isEditMode}}
+    <div class="form-floating mb-3">
+        <input type="text" class="form-control" value="{{usuario.photo}}" readonly>
+        <label for="photo">Foto atual no banco</label>
+    </div>
+    {{/if}}
 
     <div class="mb-3">
         <label for="photo-input" class="form-label text-danger">
@@ -122,6 +116,15 @@
         <input type="file" class="form-control" id="photo-input" name="photo" accept="image/*" placeholder="">
         <small class="form-text text-muted small">Máximo 1MB. Enquadre seu rosto em uma área de 200x200 pixels.</small>
     </div>
+
+    {{#if isEditMode}}
+    <div class="mb-3">
+        <label class="form-label">Avatar atual</label>
+        <div style="width: 120px; height: 120px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;">
+            <img src="{{usuario.photo}}" alt="Avatar atual" style="width: 100%; height: 100%; object-fit: cover;">
+        </div>
+    </div>
+    {{/if}}
 
     <!-- Visualização e corte da imagem -->
     <div id="crop-container" class="mb-3" style="display: none;">
@@ -152,7 +155,7 @@
         <input type="hidden" id="photo-data" />
     </div>
 
-    <button type="submit" class="btn btn-primary">Enviar</button>
+    <button type="submit" class="btn btn-primary">{{submitLabel}}</button>
 </form>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />

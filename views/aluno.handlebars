@@ -1,5 +1,5 @@
 {{#if mensagem}}
-    <div class="alert alert-primary text-center" role="alert">
+    <div class="alert alert-primary text-center alert-autodismiss" role="alert">
         {{mensagem}}
     </div>
 {{/if}}
@@ -11,6 +11,7 @@
             <th>Nome</th>
             <th>E-mail</th>
             <th>Perfil</th>
+            <th>Status</th>
             <th>WhatsApp</th>
             <th>Aniversário</th>
             <th>Faixa</th>
@@ -18,6 +19,7 @@
             <th>Zubon</th>
             <th>Obi</th>
             <th>Dependente</th>
+            <th>Ações</th>
         </tr>
     </thead>
     <tbody>
@@ -26,6 +28,7 @@
                 <td data-label="Nome">{{first_name}} {{last_name}}</td>
                 <td data-label="E-mail">{{email}}</td>
                 <td data-label="Perfil">{{role_label}}</td>
+                <td data-label="Status">{{user_status_label}}</td>
                 <td data-label="WhatsApp">{{phone}}</td>
                 <td data-label="Aniversário">{{birth_date}}</td>
                 <td data-label="Faixa">{{actual_belt}}</td>
@@ -33,6 +36,12 @@
                 <td data-label="Zubon">{{zubon_size}}</td>
                 <td data-label="Obi">{{obi_size}}</td>
                 <td data-label="Dependente">{{responsible_id}}</td>
+                <td data-label="Ações">
+                    <a href="/aluno/editar/{{id}}" class="btn btn-sm btn-outline-primary">Editar</a>
+                    {{#if can_approve}}
+                        <a href="/aluno/status/{{id}}" class="btn btn-sm btn-success">Aprovar</a>
+                    {{/if}}
+                </td>
             </tr>
         {{/each}}
     </tbody>

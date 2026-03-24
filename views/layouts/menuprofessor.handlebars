@@ -1,0 +1,31 @@
+<li class="nav-item dropdown">
+    <a class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown">
+        <i class="fa-solid fa-graduation-cap"></i> PORTAL DO PROFESSOR
+    </a>
+
+    <ul class="dropdown-menu">
+        <li class="dropdown-header text-muted">Para você</li>
+        <li><a class="dropdown-item" href="#">
+                <i class="fa-solid fa-clipboard-user"></i> Meu Perfil
+            </a>
+        </li>
+        
+        
+        <li><hr class="dropdown-divider"></li>
+        <li class="dropdown-header text-muted">Você no controle</li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-calendar-check"></i> Controle de Presença</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-line"></i> Meu Progresso</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-pie"></i> Relatórios</a></li>
+        
+
+        {{#if true }}
+        <!-- habilitar este menu caso ele seja titular de outras contas -->
+        <li><hr class="dropdown-divider"></li>
+        <li class="dropdown-header text-muted">Gerenciar contas</li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta: dependente 1</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta: dependente 2</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-child"></i> Conta: dependente 3</a></li>
+        {{/if}}
+
+    </ul>
+</li>

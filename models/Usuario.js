@@ -4,20 +4,17 @@ const db = require('./db');
 const Usuario = db.sequelize.define('tb_usuarios', {
     first_name: db.Sequelize.STRING,
     last_name: db.Sequelize.STRING,
-    email: { 
-        type: db.Sequelize.STRING, 
+    email: {
+        type: db.Sequelize.STRING,
         unique: true,
         allowNull: false,
         validate: {
             isEmail: true
         }
     },
-    password: { 
-        type: db.Sequelize.STRING, 
-        allowNull: false,
-        validate: {
-            len:[8,32]            
-        }
+    password: {
+        type: db.Sequelize.STRING,
+        allowNull: false
     },
     role: {
         type: db.Sequelize.ENUM('ADM', 'PRO', 'STD'),
@@ -44,11 +41,11 @@ const Usuario = db.sequelize.define('tb_usuarios', {
     },
     actual_belt: {
         type: db.Sequelize.ENUM(
-            'white', 
-            'gray-white', 'gray', 'gray-black', 
-            'yellow-white', 'yellow', 'yellow-black', 
-            'orange-white', 'orange', 'orange-black', 
-            'green-white', 'green', 'green-black', 
+            'white',
+            'gray-white', 'gray', 'gray-black',
+            'yellow-white', 'yellow', 'yellow-black',
+            'orange-white', 'orange', 'orange-black',
+            'green-white', 'green', 'green-black',
             'blue', 'purple', 'brown', 'black'),
         allowNull: false,
         defaultValue: 'white',
@@ -76,7 +73,7 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         type: db.Sequelize.CHAR(2),
         allowNull: false,
     },
-    photo :{
+    photo: {
         type: db.Sequelize.STRING,
         allowNull: true,
         validate: {
@@ -89,9 +86,13 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         type: db.Sequelize.INTEGER,
         allowNull: true,
     },
-    active : {
-        type: db.Sequelize.BOOLEAN, 
-        defaultValue: true,
+    user_status: {
+        type: db.Sequelize.ENUM('P', 'A', 'C'), // Pending, Ativo ou Cancelled
+        allowNull: false,
+        defaultValue: 'P', // Padrão para "Pendente"
+        validate: {
+            isIn: [['P', 'A', 'C']] // Validação extra
+        }
     }
 });
 

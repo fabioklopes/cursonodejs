@@ -5,21 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <title>Meu App</title>
+    <title>Sistema Oss - Gestão de Jiu-jitsu</title>
 </head>
 <body>
-    <div class="container mt-2 border p-1">
-        <h1>Página Login</h1>
-        <form action="/auth/verify" method="POST">
+    <div class="container mt-2 border rounded p-1 d-flex flex-column align-items-center" style="max-width: 400px;">
+        <img src="/img/logotipo_transparente.png" alt="Logotipo CRTN" class="img-fluid mb-3" width="50">
+        <h3>Login</h3>
+
+        {{#if erro}}
+            <div class="alert alert-danger alert-autodismiss" role="alert">{{erro}}</div>
+        {{/if}}
+        {{#if aviso}}
+            <div class="alert alert-warning alert-autodismiss" role="alert">{{aviso}}</div>
+        {{/if}}
+
+        <form action="/auth/verify" method="POST" class="mb-3">
+            <input type="hidden" name="redirect" value="{{redirect}}">
             <div class="mb-3">
                 <label for="email" class="form-label">E-mail</label>
                 <input type="email" class="form-control" id="email" name="email" required>
             </div>
             <div class="mb-3">
                 <label for="password" class="form-label">Senha</label>
-                <input type="password" class="form-control" id="password" name="password" required>
+                <input type="password" class="form-control" id="password" name="password" autocomplete="new-password" required>
             </div>
-            <button type="submit" class="btn btn-primary">Entrar</button>
+            
+            <!-- Botões de acesso / solicitação de cesso -->
+            <div class="d-flex justify-content-center gap-2">
+                <button type="submit" class="btn btn-outline-primary"><i class="fa-solid fa-unlock"></i> Entrar</button> 
+                                
+                <a href="/aluno/novo" class="btn btn-outline-secondary"><i class="fa-solid fa-person-circle-plus"></i> Solicitar acesso</a>
+            </div>
 
         </form>
     </div>
@@ -27,5 +43,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js"></script>
+    <script src="/js/auto-dismiss.js"></script>
 </body>
 </html>
