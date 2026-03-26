@@ -1,5 +1,19 @@
 {{#if mensagem}}
-<div class="alert alert-warning text-center alert-autodismiss" role="alert">{{mensagem}}</div>
+<div class="alert {{#if (eq tipoMensagem 'sucesso')}}alert-success{{else}}{{#if (eq tipoMensagem 'erro')}}alert-danger{{else}}{{#if (eq tipoMensagem 'desconformidade')}}alert-warning{{else}}alert-info{{/if}}{{/if}}{{/if}} text-center alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'sucesso')}}
+    <i class="fa-solid fa-circle-check"></i>
+    {{else}}
+    {{#if (eq tipoMensagem 'erro')}}
+    <i class="fa-solid fa-circle-xmark"></i>
+    {{else}}
+    {{#if (eq tipoMensagem 'desconformidade')}}
+    <i class="fa-solid fa-triangle-exclamation"></i>
+    {{/if}}{{/if}}{{/if}}
+    {{mensagem}}
+    {{#if (eq tipoMensagem 'sucesso')}}
+    <div class="mt-2 small" id="redirectCountdown">Redirecionando em <span id="countdownNumber">3</span>s...</div>
+    {{/if}}
+</div>
 {{/if}}
 
 <form action="{{formAction}}" method="POST" enctype="multipart/form-data">
@@ -67,82 +81,111 @@
     <input type="hidden" name="responsible_id" id="responsible-id-input" value="">
 
     <!-- Formulário principal (oculto até o usuário escolher o tipo de conta no modo de cadastro) -->
-    <div id="form-fields-container" style="{{#if isEditMode}}display:block{{else}}display:none{{/if}}">
+    <div id="form-fields-container" style="{{#if isEditMode}}display:block{{else}}{{#if mensagem}}display:block{{else}}display:none{{/if}}{{/if}}">
+        <style>
+            .input-error-container {
+                position: relative;
+            }
+            .form-control.is-invalid, 
+            .form-select.is-invalid {
+                border-color: #dc3545;
+                background-image: none;
+            }
+            .invalid-feedback {
+                display: block;
+                width: 100%;
+                margin-top: 0.25rem;
+                font-size: 0.875em;
+                color: #dc3545;
+            }
+        </style>
+
         <div class="form-floating mb-3">
-            <input type="text" class="form-control" name="first_name" value="{{usuario.first_name}}" placeholder=""
+            <input type="text" class="form-control" id="first_name" name="first_name" value="{{usuario.first_name}}" placeholder=""
                 {{#if isEditMode}}readonly{{/if}}>
-            <label for="firstName">Primeiro nome</label>
+            <label for="first_name">Primeiro nome</label>
+            {{#if camposErro.first_name}}<div class="invalid-feedback" style="display:block;">{{camposErro.first_name}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="text" class="form-control" name="last_name" value="{{usuario.last_name}}" placeholder="" {{#if
+            <input type="text" class="form-control" id="last_name" name="last_name" value="{{usuario.last_name}}" placeholder="" {{#if
                 isEditMode}}readonly{{/if}}>
-            <label for="lastName">Restante do nome</label>
+            <label for="last_name">Restante do nome</label>
+            {{#if camposErro.last_name}}<div class="invalid-feedback" style="display:block;">{{camposErro.last_name}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="email" class="form-control" name="email" id="email-input" value="{{usuario.email}}"
+            <input type="email" class="form-control" id="email" name="email" {{#if camposErro.email}}{{/if}} value="{{usuario.email}}"
                 placeholder="" required>
             <label for="email">E-mail</label>
             <div class="form-text text-muted" id="email-hint-dependente" style="display:none;">
                 Para dependentes, o e-mail é opcional. Se não preenchido, será gerado automaticamente.
             </div>
+            {{#if camposErro.email}}<div class="invalid-feedback" style="display:block;">{{camposErro.email}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="password" class="form-control" name="password1" placeholder="" {{#unless
+            <input type="password" class="form-control" id="password1" name="password1" placeholder="" {{#unless
                 isEditMode}}required{{/unless}}>
             <label for="password1">{{#if isEditMode}}Nova senha (opcional){{else}}Senha{{/if}}</label>
         </div>
 
         <div class="form-floating mb-3">
-            <input type="password" class="form-control" name="password2" placeholder="" {{#unless
+            <input type="password" class="form-control" id="password2" name="password2" {{#if camposErro.password}}{{/if}} placeholder="" {{#unless
                 isEditMode}}required{{/unless}}>
-            <label for="password">{{#if isEditMode}}Repita a nova senha{{else}}Repita a sua senha{{/if}}</label>
+            <label for="password2">{{#if isEditMode}}Repita a nova senha{{else}}Repita a sua senha{{/if}}</label>
+            {{#if camposErro.password}}<div class="invalid-feedback" style="display:block;">{{camposErro.password}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="phone" class="form-control" name="phone" value="{{usuario.phone}}" placeholder="" required>
+            <input type="tel" class="form-control" id="phone" name="phone" {{#if camposErro.phone}}{{/if}} value="{{usuario.phone}}" placeholder="" required>
             <label for="phone">WhatsApp (apenas números)</label>
+            {{#if camposErro.phone}}<div class="invalid-feedback" style="display:block;">{{camposErro.phone}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="date" class="form-control" name="birth_date" value="{{usuario.birth_date}}" placeholder="" {{#if isEditMode}}readonly{{else}}required{{/if}}>
+            <input type="date" class="form-control" id="birth_date" name="birth_date" {{#if camposErro.birth_date}}{{/if}} value="{{usuario.birth_date}}" placeholder="" {{#if isEditMode}}readonly{{else}}required{{/if}}>
             <label for="birth_date">Aniversário</label>
+            {{#if camposErro.birth_date}}<div class="invalid-feedback" style="display:block;">{{camposErro.birth_date}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <select class="form-select" name="actual_belt" aria-label="" required>
+            <select class="form-select" id="actual_belt" name="actual_belt" {{#if camposErro.actual_belt}}{{/if}} aria-label="" required>
                 <option value="">-- Selecione --</option>
                 {{#each beltOptions}}
                 <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
                 {{/each}}
             </select>
             <label for="actual_belt">Faixa Atual</label>
+            {{#if camposErro.actual_belt}}<div class="invalid-feedback" style="display:block;">{{camposErro.actual_belt}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="number" min="0" max="6" class="form-control" name="actual_degree"
+            <input type="number" min="0" max="6" class="form-control" id="actual_degree" name="actual_degree" {{#if camposErro.actual_degree}}{{/if}}
                 value="{{usuario.actual_degree}}" placeholder="" required>
             <label for="actual_degree">Grau (se não tiver grau, coloque zero)</label>
+            {{#if camposErro.actual_degree}}<div class="invalid-feedback" style="display:block;">{{camposErro.actual_degree}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="text" class="form-control" name="wagi_size" value="{{usuario.wagi_size}}" placeholder=""
+            <input type="text" class="form-control" id="wagi_size" name="wagi_size" {{#if camposErro.wagi_size}}{{/if}} value="{{usuario.wagi_size}}" placeholder=""
                 required>
             <label for="wagi_size">Tamanho - Parte de cima do kimono (Wagi)</label>
+            {{#if camposErro.wagi_size}}<div class="invalid-feedback" style="display:block;">{{camposErro.wagi_size}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="text" class="form-control" name="zubon_size" value="{{usuario.zubon_size}}" placeholder=""
+            <input type="text" class="form-control" id="zubon_size" name="zubon_size" {{#if camposErro.zubon_size}}{{/if}} value="{{usuario.zubon_size}}" placeholder=""
                 required>
             <label for="zubon_size">Tamanho - Parte de baixo do kimono (Zubon)</label>
+            {{#if camposErro.zubon_size}}<div class="invalid-feedback" style="display:block;">{{camposErro.zubon_size}}</div>{{/if}}
         </div>
 
         <div class="form-floating mb-3">
-            <input type="text" class="form-control" name="obi_size" value="{{usuario.obi_size}}" placeholder=""
+            <input type="text" class="form-control" id="obi_size" name="obi_size" {{#if camposErro.obi_size}}{{/if}} value="{{usuario.obi_size}}" placeholder=""
                 required>
             <label for="obi_size">Tamanho - Faixa (Obi)</label>
+            {{#if camposErro.obi_size}}<div class="invalid-feedback" style="display:block;">{{camposErro.obi_size}}</div>{{/if}}
         </div>
 
         {{#if isEditMode}}
@@ -310,7 +353,7 @@
         const verificarContainer = document.getElementById('verificar-titular-container');
         const formFieldsContainer = document.getElementById('form-fields-container');
         const responsibleIdInput = document.getElementById('responsible-id-input');
-        const emailInput = document.getElementById('email-input');
+        const emailInput = document.getElementById('email');
         const emailHintDep = document.getElementById('email-hint-dependente');
         const titularEmailInput = document.getElementById('titular-email-input');
         const btnVerificar = document.getElementById('btn-verificar-titular');
@@ -424,3 +467,45 @@
     })();
 </script>
 {{/unless}}
+
+<script>
+    // Script para aplicar classes de erro nos campos do formulário
+    document.addEventListener('DOMContentLoaded', function () {
+        // Aplicar estilos de erro nos campos do formulário
+        {{#if camposErro}}
+        const fieldsWithErrors = [
+            {{#each camposErro}}
+            '{{@key}}',
+            {{/each}}
+        ];
+        fieldsWithErrors.forEach(function (fieldName) {
+            const field = document.getElementById(fieldName);
+            if (field) {
+                field.classList.add('is-invalid');
+            }
+        });
+        {{/if}}
+
+        // Implementar redirecionamento automático com countdown
+        const redirectCountdown = document.getElementById('redirectCountdown');
+        if (redirectCountdown) {
+            const countdownNumber = document.getElementById('countdownNumber');
+            const params = new URLSearchParams(window.location.search);
+            const shouldRedirect = params.get('sucesso') === '1';
+            
+            if (shouldRedirect) {
+                let timeRemaining = 3; // 3 segundos
+                const countdownInterval = setInterval(function () {
+                    timeRemaining--;
+                    countdownNumber.textContent = Math.max(0, timeRemaining);
+                    
+                    if (timeRemaining <= 0) {
+                        clearInterval(countdownInterval);
+                        // Redireciona para a página de login
+                        window.location.href = '/auth/login';
+                    }
+                }, 1000);
+            }
+        }
+    });
+</script>

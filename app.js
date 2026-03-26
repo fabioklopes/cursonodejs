@@ -9,11 +9,9 @@ const fs = require('fs');
 const path = require('path');
 const sharp = require('sharp');
 const argon2 = require('argon2');
+const { Op } = require('sequelize');
 const Usuario = require('./models/Usuario');
 const generatedCode = require('./utils/usercode_generator');
-
-
-
 
 
 // configuração gerais da aplicação / momento de execução
@@ -33,6 +31,7 @@ app.use(session({
     }
 }));
 
+// Carrega na seção a informação do Portal
 app.use((req, res, next) => {
     res.locals.usuarioLogado = req.session.usuario || null;
     res.locals.viewingAs = req.session.viewingAs || null;
@@ -76,6 +75,7 @@ app.use(async (req, res, next) => {
     next();
 });
 
+// Rotas isentas de verificação de login
 function isPublicRoute(pathname) {
     return pathname === '/auth/login'
         || pathname === '/auth/verify'
@@ -85,6 +85,7 @@ function isPublicRoute(pathname) {
         || pathname.startsWith('/uploads/');
 }
 
+// Redirecionamento para o login caso não esteja autenticado
 function requireAuth(req, res, next) {
     if (isPublicRoute(req.path)) {
         return next();
@@ -100,10 +101,16 @@ function requireAuth(req, res, next) {
 
 app.use(requireAuth);
 
+// Equiparação de acesso para professor e administrador
 function hasProfessorAccess(usuarioSessao) {
     return !!usuarioSessao && ['PRO', 'ADM'].includes(usuarioSessao.role);
 }
 
+function getDefaultRedirectByRole(role) {
+    return ['PRO', 'ADM'].includes(role) ? '/dashboard' : '/aluno';
+}
+
+// Helper para exibir o nome completo do perfil do usuário
 function getRoleLabel(role) {
     if (role === 'ADM') {
         return 'Administrador';
@@ -137,6 +144,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Faixas x valor x label
 const BELT_OPTIONS = [
     { value: 'white', label: 'Branca' },
     { value: 'gray_white', label: 'Cinza e Branca' },
@@ -295,29 +303,64 @@ function buildUserFormViewModel(usuario, isEditMode) {
     };
 }
 
-
+// ### CONFIGURAÇÃO DAS ROTAS ###
 // rota principal
 app.get('/', (req, res) => {
-    res.redirect('/aluno');
+    res.redirect('/dashboard');
 });
 
 app.get('/dashboard', (req, res) => {
-    res.redirect('/aluno');
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Acesso permitido apenas para professor ou administrador.';
+        return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    return res.render('dashboard');
 });
 
 
 // FUNÇÕES DE ALUNOS
-app.get('/aluno', function(req, res) {
+app.get('/aluno', async (req, res) => {
     const hasProfessorPrivileges = hasProfessorAccess(req.session.usuario);
-    const queryOptions = {
-        order: [['first_name', 'ASC']]
-    };
+    const searchTerm = (req.query.q || '').trim();
+    const pageRaw = parseInt(req.query.page, 10);
+    const currentPageRequested = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const itemsPerPage = 10;
+    const pagesPerBlock = 8;
 
-    if (!hasProfessorPrivileges) {
-        queryOptions.where = { user_status: 'A' };
-    }
+    try {
+        const whereClauses = [];
 
-    Usuario.findAll(queryOptions).then(function(usuarios) {
+        if (!hasProfessorPrivileges) {
+            whereClauses.push({ user_status: 'A' });
+        }
+
+        if (searchTerm) {
+            const normalizedPhone = searchTerm.replace(/\D/g, '');
+            const searchFilters = [
+                { first_name: { [Op.like]: `%${searchTerm}%` } },
+                { last_name: { [Op.like]: `%${searchTerm}%` } },
+                { email: { [Op.like]: `%${searchTerm}%` } }
+            ];
+
+            if (normalizedPhone) {
+                searchFilters.push({ phone: { [Op.like]: `%${normalizedPhone}%` } });
+            }
+
+            whereClauses.push({ [Op.or]: searchFilters });
+        }
+
+        const where = whereClauses.length === 0
+            ? undefined
+            : whereClauses.length === 1
+                ? whereClauses[0]
+                : { [Op.and]: whereClauses };
+
+        const usuarios = await Usuario.findAll({
+            where,
+            order: [['first_name', 'ASC'], ['last_name', 'ASC']]
+        });
+
         const lista = usuarios.map((u) => {
             const usuario = u.get({ plain: true });
             return {
@@ -327,17 +370,76 @@ app.get('/aluno', function(req, res) {
                 can_approve: hasProfessorPrivileges && usuario.user_status === 'P'
             };
         });
-        res.render('aluno', {
+
+        const pendentes = hasProfessorPrivileges
+            ? lista.filter((usuario) => usuario.user_status === 'P')
+            : [];
+        const ativos = hasProfessorPrivileges
+            ? lista.filter((usuario) => usuario.user_status === 'A')
+            : lista;
+        const cancelados = hasProfessorPrivileges
+            ? lista.filter((usuario) => usuario.user_status === 'C')
+            : [];
+        const listaOrdenada = hasProfessorPrivileges
+            ? pendentes.concat(ativos, cancelados)
+            : ativos;
+
+        const totalItems = listaOrdenada.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+        const currentPage = Math.min(currentPageRequested, totalPages);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const usuariosPaginados = listaOrdenada.slice(startIndex, startIndex + itemsPerPage);
+
+        const startPage = Math.floor((currentPage - 1) / pagesPerBlock) * pagesPerBlock + 1;
+        const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
+        const visiblePages = endPage - startPage + 1;
+
+        const pageNumbers = Array.from({ length: visiblePages }, (_unused, index) => {
+            const pageNumber = startPage + index;
+            return {
+                number: pageNumber,
+                isCurrent: pageNumber === currentPage
+            };
+        });
+
+        return res.render('aluno', {
             mensagem: req.query.mensagem || '',
-            usuarios: lista,
-            hasProfessorPrivileges
+            usuarios: usuariosPaginados,
+            hasProfessorPrivileges,
+            searchTerm,
+            hasSearchTerm: !!searchTerm,
+            searchTermEncoded: encodeURIComponent(searchTerm),
+            pagination: {
+                currentPage,
+                totalPages,
+                totalItems,
+                hasPrev: currentPage > 1,
+                hasNext: currentPage < totalPages,
+                prevPage: currentPage > 1 ? currentPage - 1 : 1,
+                nextPage: currentPage < totalPages ? currentPage + 1 : totalPages,
+                pageNumbers
+            }
         });
-    }).catch(function(err) {
-        res.render('aluno', {
+    } catch (err) {
+        return res.render('aluno', {
             mensagem: 'Erro ao carregar alunos: ' + err.message,
-            usuarios: []
+            usuarios: [],
+            hasProfessorPrivileges,
+            searchTerm,
+            hasSearchTerm: !!searchTerm,
+            searchTermEncoded: encodeURIComponent(searchTerm),
+            pagination: {
+                currentPage: 1,
+                totalPages: 1,
+                totalItems: 0,
+                hasPrev: false,
+                hasNext: false,
+                prevPage: 1,
+                nextPage: 1,
+                pageNumbers: [{ number: 1, isCurrent: true }]
+            }
         });
-    });
+    }
 });
 
 // Verifica se o e-mail pertence a um titular ativo (chamada AJAX pública)
@@ -400,11 +502,66 @@ app.get('/conta/voltar', (req, res) => {
 
 app.get('/aluno/novo', (req, res) => {
     const vm = buildUserFormViewModel(null, false);
-    vm.mensagem = req.query.mensagem || '';
+    
+    // Capturar mensagem da sessão se existir
+    if (req.session.mensagem) {
+        vm.mensagem = req.session.mensagem;
+        vm.tipoMensagem = req.session.tipoMensagem || 'info';
+        vm.redirectUrl = req.session.redirectUrl;
+        vm.redirectDelay = req.session.redirectDelay;
+        
+        // Limpar dados da sessão após usar
+        delete req.session.mensagem;
+        delete req.session.tipoMensagem;
+        delete req.session.redirectUrl;
+        delete req.session.redirectDelay;
+    } else {
+        // Capturar mensagem de query param se existir (compatibilidadecom redirecionamentos antigos)
+        vm.mensagem = req.query.mensagem || '';
+        vm.tipoMensagem = req.query.tipo || 'info';
+    }
+    
     res.render('formnovousuario', vm);
 });
 
 app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
+    // Função para renderizar o formulário com dados preservados em caso de erro
+    const renderFormWithError = (errorMessage, fieldErrors = {}) => {
+        const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
+        
+        const formData = {
+            first_name: req.body.first_name || '',
+            last_name: req.body.last_name || '',
+            email: req.body.email || '',
+            phone: req.body.phone || '',
+            birth_date: req.body.birth_date || '',
+            actual_belt: req.body.actual_belt || '',
+            actual_degree: req.body.actual_degree || '0',
+            wagi_size: req.body.wagi_size || '',
+            zubon_size: req.body.zubon_size || '',
+            obi_size: req.body.obi_size || '',
+            photo: '/uploads/users/default.jpg',
+            responsible_id: responsibleId
+        };
+
+        const vm = {
+            isEditMode: false,
+            title: 'Novo Aluno',
+            submitLabel: 'Enviar',
+            formAction: '/aluno/cadastrar',
+            usuario: formData,
+            beltOptions: BELT_OPTIONS.map((option) => ({
+                ...option,
+                selected: option.value === formData.actual_belt
+            })),
+            mensagem: errorMessage,
+            tipoMensagem: 'erro',
+            camposErro: fieldErrors
+        };
+
+        res.render('formnovousuario', vm);
+    };
+
     try {
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
         const isDependent = !!responsibleId;
@@ -419,12 +576,12 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
                         await fs.promises.unlink(tempFilePath);
                     }
                 }
-                const mensagem = 'Conta titular inválida ou não encontrada.';
-                return res.redirect(`/aluno/novo?mensagem=${encodeURIComponent(mensagem)}`);
+                return renderFormWithError('Conta titular inválida ou não encontrada.');
             }
         }
 
         const senha = req.body.password2 || '';
+        const fieldErrors = {};
 
         if (!req.body.password1 || req.body.password1 !== senha) {
             if (req.file) {
@@ -433,9 +590,8 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
                     await fs.promises.unlink(tempFilePath);
                 }
             }
-
-            const mensagem = 'As senhas não conferem.';
-            return res.redirect(`/aluno/novo?mensagem=${encodeURIComponent(mensagem)}`);
+            fieldErrors.password = 'As senhas não conferem.';
+            return renderFormWithError('Corrija os campos em desconformidade abaixo.', fieldErrors);
         }
 
         if (senha.length < 8) {
@@ -445,9 +601,8 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
                     await fs.promises.unlink(tempFilePath);
                 }
             }
-
-            const mensagem = 'A senha deve ter no mínimo 8 caracteres.';
-            return res.redirect(`/aluno/novo?mensagem=${encodeURIComponent(mensagem)}`);
+            fieldErrors.password = 'A senha deve ter no mínimo 8 caracteres.';
+            return renderFormWithError('Corrija os campos em desconformidade abaixo.', fieldErrors);
         }
 
         const passwordHash = await argon2.hash(senha);
@@ -482,12 +637,64 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             await usuario.save();
         }
 
-        const mensagem = isDependent ? 'Cadastro de dependente enviado com sucesso.' : 'Aluno criado com sucesso.';
-        res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+        // Armazenar mensagem de sucesso na sessão com indicador de redirecionamento
+        req.session.mensagem = isDependent ? 'Cadastro de dependente enviado com sucesso.' : 'Aluno criado com sucesso.';
+        req.session.tipoMensagem = 'sucesso';
+        req.session.redirectUrl = '/auth/login';
+        req.session.redirectDelay = 3000; // 3 segundos
+
+        res.redirect(`/aluno/novo?sucesso=1`);
     } catch (err) {
         console.error('Erro no cadastro:', err);
-        const mensagem = 'Erro ao criar aluno: ' + err.message;
-        res.redirect(`/aluno/novo?mensagem=${encodeURIComponent(mensagem)}`);
+        
+        // Extrair mensagens de erro de validação do Sequelize
+        const fieldErrors = {};
+        let mensagemGeral = 'Erro ao criar aluno. ';
+
+        if (err.name === 'SequelizeValidationError') {
+            err.errors.forEach((error) => {
+                if (error.path) {
+                    // Traduzir erros comuns
+                    if (error.path === 'email' && error.type === 'unique violation') {
+                        fieldErrors[error.path] = 'Este e-mail já está cadastrado.';
+                    } else if (error.path === 'email' && error.type === 'Validation isEmail') {
+                        fieldErrors[error.path] = 'E-mail inválido.';
+                    } else if (error.path === 'phone' && error.type === 'Validation is') {
+                        fieldErrors[error.path] = 'Telefone deve conter 11 dígitos.';
+                    } else if (error.path === 'birth_date') {
+                        fieldErrors[error.path] = 'Data de nascimento inválida ou futura.';
+                    } else if (error.path === 'actual_belt') {
+                        fieldErrors[error.path] = 'Faixa selecionada é inválida.';
+                    } else if (error.path === 'actual_degree') {
+                        fieldErrors[error.path] = 'Grau deve estar entre 0 e 6.';
+                    } else {
+                        fieldErrors[error.path] = error.message;
+                    }
+                }
+            });
+            mensagemGeral = 'Corrija os campos em desconformidade abaixo.';
+        } else if (err.name === 'SequelizeUniqueConstraintError') {
+            const field = err.fields ? Object.keys(err.fields)[0] : 'email';
+            if (field === 'email') {
+                fieldErrors[field] = 'Este e-mail já está cadastrado.';
+            } else {
+                fieldErrors[field] = `${field} já existe no sistema.`;
+            }
+            mensagemGeral = 'Corrija os campos em desconformidade abaixo.';
+        } else {
+            mensagemGeral += err.message;
+        }
+
+        if (req.file) {
+            const tempFilePath = path.join(uploadsDir, req.file.filename);
+            if (fs.existsSync(tempFilePath)) {
+                fs.unlink(tempFilePath, (unlinkErr) => {
+                    if (unlinkErr) console.error('Erro ao deletar arquivo temporário:', unlinkErr);
+                });
+            }
+        }
+
+        renderFormWithError(mensagemGeral, fieldErrors);
     }
 });
 
@@ -651,31 +858,35 @@ app.get('/presenca', function(req, res) {
 // login
 app.get('/auth/login', function(req, res) {
     if (req.session.usuario) {
-        return res.redirect('/aluno');
+        return res.redirect(getDefaultRedirectByRole(req.session.usuario.role));
     }
+
+    const redirect = typeof req.query.redirect === 'string' && req.query.redirect.startsWith('/')
+        ? req.query.redirect
+        : '/aluno';
 
     res.render('login', {
         layout: false,
         erro: req.query.erro || '',
         aviso: req.query.aviso || '',
-        redirect: req.query.redirect || '/aluno'
+        redirect
     });
 });
 app.post('/auth/verify', function(req, res) {
     const { email, password } = req.body;
-    const redirect = typeof req.body.redirect === 'string' && req.body.redirect.startsWith('/')
+    const requestedRedirect = typeof req.body.redirect === 'string' && req.body.redirect.startsWith('/')
         ? req.body.redirect
         : '/aluno';
 
     if (!email || !password) {
         const erro = encodeURIComponent('Informe e-mail e senha.');
-        return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(redirect)}`);
+        return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
     }
 
     Usuario.findOne({ where: { email } }).then(async function(usuario) {
         if (!usuario) {
             const erro = encodeURIComponent('Credenciais inválidas.');
-            return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(redirect)}`);
+            return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
         }
 
         let senhaValida = false;
@@ -693,22 +904,22 @@ app.post('/auth/verify', function(req, res) {
 
         if (!senhaValida) {
             const erro = encodeURIComponent('Credenciais inválidas.');
-            return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(redirect)}`);
+            return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
         }
 
         if (usuario.user_status === 'P') {
             const aviso = encodeURIComponent('Seu cadastro está pendente de aprovação. Fale com o seu professor.');
-            return res.redirect(`/auth/login?aviso=${aviso}&redirect=${encodeURIComponent(redirect)}`);
+            return res.redirect(`/auth/login?aviso=${aviso}&redirect=${encodeURIComponent(requestedRedirect)}`);
         }
 
         if (usuario.user_status === 'C') {
             const aviso = encodeURIComponent('Seu acesso está bloqueado. Se você acha que isso é algum engano, fale com o seu professor.');
-            return res.redirect(`/auth/login?aviso=${aviso}&redirect=${encodeURIComponent(redirect)}`);
+            return res.redirect(`/auth/login?aviso=${aviso}&redirect=${encodeURIComponent(requestedRedirect)}`);
         }
 
         if (!['STD', 'PRO', 'ADM'].includes(usuario.role)) {
             const erro = encodeURIComponent('Seu nível de acesso não está autorizado para este portal.');
-            return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(redirect)}`);
+            return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
         }
 
         req.session.usuario = {
@@ -720,10 +931,14 @@ app.post('/auth/verify', function(req, res) {
             role: usuario.role
         };
 
+        const redirect = requestedRedirect === '/aluno'
+            ? getDefaultRedirectByRole(usuario.role)
+            : requestedRedirect;
+
         return res.redirect(redirect);
     }).catch(function(err) {
         const erro = encodeURIComponent('Erro ao verificar credenciais: ' + err.message);
-        res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(redirect)}`);
+        res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
     });
 });
 
@@ -772,6 +987,11 @@ Handlebars.registerHelper("formatPhone", function (phone) {
     return `(${match[1]}) ${match[2]}-${match[3]}`;
   }
   return phone;
+});
+
+// Helper para comparação de igualdade
+Handlebars.registerHelper("eq", function (a, b) {
+  return a === b;
 });
 
 

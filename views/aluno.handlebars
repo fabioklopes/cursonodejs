@@ -1,14 +1,26 @@
 {{#if mensagem}}
-    <div class="alert alert-primary text-center alert-autodismiss" role="alert">
+    <div class="alert {{#if (eq tipoMensagem 'sucesso')}}alert-success{{else}}{{#if (eq tipoMensagem 'erro')}}alert-danger{{else}}{{#if (eq tipoMensagem 'desconformidade')}}alert-warning{{else}}alert-primary{{/if}}{{/if}}{{/if}} text-center alert-autodismiss" role="alert">
+        {{#if (eq tipoMensagem 'sucesso')}}
+        <i class="fa-solid fa-circle-check"></i>
+        {{else}}
+        {{#if (eq tipoMensagem 'erro')}}
+        <i class="fa-solid fa-circle-xmark"></i>
+        {{else}}
+        {{#if (eq tipoMensagem 'desconformidade')}}
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        {{/if}}{{/if}}{{/if}}
         {{mensagem}}
+        {{#if (eq tipoMensagem 'sucesso')}}
+        <div class="mt-2 small" id="redirectCountdown">Redirecionando em <span id="countdownNumber">3</span>s...</div>
+        {{/if}}
     </div>
 {{/if}}
 
 <h1 class="mb-4">Página Aluno</h1>
 <style>
     .aluno-avatar {
-        width: 25px;
-        height: 25px;
+        width: 40px;
+        height: 40px;
         border-radius: 50%;
         object-fit: cover;
         border: 1px solid var(--bs-border-color-translucent);
@@ -41,15 +53,72 @@
         font-weight: 600;
         color: var(--bs-secondary-color);
     }
+
+    .aluno-pagination-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .aluno-pagination-wrapper small {
+        text-align: center;
+    }
+
+    .aluno-pagination-wrapper > * {
+        min-width: 0;
+    }
+
+    .aluno-pagination-nav {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+    }
+
+    .aluno-pagination-nav .pagination {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        width: auto;
+        margin-bottom: 0;
+    }
+
+    @media (max-width: 768px) {
+        .aluno-pagination-nav .page-link {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.85rem;
+        }
+    }
 </style>
+
+<form id="alunoSearchForm" method="GET" action="/aluno" class="mb-3">
+    <label for="alunoSearchInput" class="form-label">Buscar aluno</label>
+    <input
+        type="text"
+        id="alunoSearchInput"
+        name="q"
+        class="form-control"
+        placeholder="Pesquisar por nome, e-mail ou telefone"
+        value="{{searchTerm}}"
+        autocomplete="off"
+    >
+</form>
 
 <table class="table table-striped align-middle">
     <thead>
         <tr>
             <th>Alunos</th>
+            <th>Status</th>
+            {{#if hasProfessorPrivileges}}
+                <th class="text-center">Ações</th>
+            {{/if}}
         </tr>
     </thead>
     <tbody>
+        {{#if usuarios.length}}
         {{#each usuarios}}
             <tr>
                 <td>
@@ -77,10 +146,62 @@
                         <span>{{first_name}} {{last_name}}</span>
                     </button>
                 </td>
+                <td>
+                    {{#if can_approve}}
+                        <span class="badge text-bg-warning">{{user_status_label}}</span>
+                    {{else}}
+                        {{#if (eq user_status 'A')}}
+                            <span class="badge text-bg-success">{{user_status_label}}</span>
+                        {{else}}
+                            <span class="badge text-bg-secondary">{{user_status_label}}</span>
+                        {{/if}}
+                    {{/if}}
+                </td>
+                {{#if ../hasProfessorPrivileges}}
+                <td class="text-center">
+                    {{#if can_approve}}
+                        <a class="btn btn-sm btn-success" href="/aluno/status/{{id}}">Aprovar</a>
+                        <a class="btn btn-sm btn-outline-danger" href="/aluno/status/negar/{{id}}">Negar</a>
+                    {{else}}
+                        <span class="text-body-secondary">-</span>
+                    {{/if}}
+                </td>
+                {{/if}}
             </tr>
         {{/each}}
+        {{else}}
+            <tr>
+                <td colspan="{{#if hasProfessorPrivileges}}3{{else}}2{{/if}}" class="text-center text-body-secondary py-4">
+                    Nenhum aluno encontrado para os filtros informados.
+                </td>
+            </tr>
+        {{/if}}
     </tbody>
 </table>
+
+<div class="aluno-pagination-wrapper d-flex flex-column align-items-center gap-2 mb-4">
+    <small class="text-body-secondary">Total de registros: {{pagination.totalItems}}</small>
+
+    {{#if pagination.totalPages}}
+    <nav class="aluno-pagination-nav" aria-label="Paginação de alunos">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item {{#unless pagination.hasPrev}}disabled{{/unless}}">
+                <a class="page-link" href="/aluno?page={{pagination.prevPage}}{{#if hasSearchTerm}}&q={{{searchTermEncoded}}}{{/if}}" aria-label="Página anterior">Anterior</a>
+            </li>
+
+            {{#each pagination.pageNumbers}}
+                <li class="page-item {{#if isCurrent}}active{{/if}}">
+                    <a class="page-link" href="/aluno?page={{number}}{{#if ../hasSearchTerm}}&q={{{../searchTermEncoded}}}{{/if}}">{{number}}</a>
+                </li>
+            {{/each}}
+
+            <li class="page-item {{#unless pagination.hasNext}}disabled{{/unless}}">
+                <a class="page-link" href="/aluno?page={{pagination.nextPage}}{{#if hasSearchTerm}}&q={{{searchTermEncoded}}}{{/if}}" aria-label="Próxima página">Próxima</a>
+            </li>
+        </ul>
+    </nav>
+    {{/if}}
+</div>
 
 <div class="modal fade" id="alunoModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="alunoModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -205,4 +326,33 @@
             setText('modalAlunoResponsible', trigger.getAttribute('data-responsible'));
         });
     })();
+</script>
+
+<script>
+
+    // Script de countdown para redirecionamento automático em caso de sucesso
+    document.addEventListener('DOMContentLoaded', function () {
+        const redirectCountdown = document.getElementById('redirectCountdown');
+        if (redirectCountdown) {
+            const countdownNumber = document.getElementById('countdownNumber');
+            const params = new URLSearchParams(window.location.search);
+            const redirectUrl = new URLSearchParams(window.location.search).get('redirect');
+            
+            // Se há redirecionamento programado (sucesso)
+            if (redirectUrl) {
+                let timeRemaining = 3; // 3 segundos
+                
+                const countdownInterval = setInterval(function () {
+                    timeRemaining--;
+                    countdownNumber.textContent = Math.max(0, timeRemaining);
+                    
+                    if (timeRemaining <= 0) {
+                        clearInterval(countdownInterval);
+                        // Redireciona para a URL especificada ou volta à página anterior
+                        window.location.href = decodeURIComponent(redirectUrl) || '/aluno';
+                    }
+                }, 1000);
+            }
+        }
+    });
 </script>
