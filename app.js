@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+
 const { engine } = require('express-handlebars');
 const bodyParser = require('body-parser');
 const session = require('express-session');
@@ -9,6 +10,10 @@ const path = require('path');
 const sharp = require('sharp');
 const argon2 = require('argon2');
 const Usuario = require('./models/Usuario');
+const generatedCode = require('./utils/usercode_generator');
+
+
+
 
 
 // configuração gerais da aplicação / momento de execução
@@ -33,6 +38,10 @@ app.use((req, res, next) => {
     res.locals.viewingAs = req.session.viewingAs || null;
 
     const role = req.session.usuario ? req.session.usuario.role : null;
+    res.locals.isRoleSTD = role === 'STD';
+    res.locals.isRolePRO = role === 'PRO';
+    res.locals.isRoleADM = role === 'ADM';
+
     if (role === 'ADM') {
         res.locals.portalMenuTitulo = 'PORTAL DO ADMINISTRADOR';
     } else if (role === 'PRO') {
@@ -130,18 +139,18 @@ const upload = multer({ storage });
 
 const BELT_OPTIONS = [
     { value: 'white', label: 'Branca' },
-    { value: 'gray-white', label: 'Cinza e Branca' },
+    { value: 'gray_white', label: 'Cinza e Branca' },
     { value: 'gray', label: 'Cinza' },
-    { value: 'gray-black', label: 'Cinza e Preta' },
-    { value: 'yellow-white', label: 'Amarela e Branca' },
+    { value: 'gray_black', label: 'Cinza e Preta' },
+    { value: 'yellow_white', label: 'Amarela e Branca' },
     { value: 'yellow', label: 'Amarela' },
-    { value: 'yellow-black', label: 'Amarela e Preta' },
-    { value: 'orange-white', label: 'Laranja e Branca' },
+    { value: 'yellow_black', label: 'Amarela e Preta' },
+    { value: 'orange_white', label: 'Laranja e Branca' },
     { value: 'orange', label: 'Laranja' },
-    { value: 'orange-black', label: 'Laranja e Preta' },
-    { value: 'green-white', label: 'Verde e Branca' },
+    { value: 'orange_black', label: 'Laranja e Preta' },
+    { value: 'green_white', label: 'Verde e Branca' },
     { value: 'green', label: 'Verde' },
-    { value: 'green-black', label: 'Verde e Preta' },
+    { value: 'green_black', label: 'Verde e Preta' },
     { value: 'blue', label: 'Azul' },
     { value: 'purple', label: 'Roxa' },
     { value: 'brown', label: 'Marrom' },
@@ -450,6 +459,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
         }
 
         const usuario = await Usuario.create({
+            user_code: generatedCode(),
             first_name: req.body.first_name,
             last_name: req.body.last_name,
             email: emailFinal,
@@ -470,7 +480,6 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             // Cadastro pendente mantém foto temporária até aprovação.
             usuario.photo = `/uploads/users/${req.file.filename}`;
             await usuario.save();
-            console.log(`Imagem temporária salva: ${req.file.filename}`);
         }
 
         const mensagem = isDependent ? 'Cadastro de dependente enviado com sucesso.' : 'Aluno criado com sucesso.';
@@ -704,6 +713,7 @@ app.post('/auth/verify', function(req, res) {
 
         req.session.usuario = {
             id: usuario.id,
+            user_code: usuario.user_code,
             first_name: usuario.first_name,
             last_name: usuario.last_name,
             email: usuario.email,
@@ -724,6 +734,48 @@ app.post('/auth/logout', function(req, res) {
         res.redirect(`/auth/login?erro=${erro}`);
     });
 });
+
+
+
+
+
+// ### FORMATADORES PARA HANDLEBARS ###
+const Handlebars = require("handlebars");
+const moment = require("moment"); // CDN importado em main.handlebars
+
+// data no formato DD/MM/YYYY
+Handlebars.registerHelper("formatDate", function (date) {
+    if (!date) return "";
+    return moment(date).format("DD/MM/YYYY");
+});
+
+
+// hora no formato HH:mm:ss
+Handlebars.registerHelper("formatTime", function (timestamp) {
+  if (!timestamp) return "";
+  return moment(timestamp).format("HH:mm:ss");
+});
+
+
+// data hora no formato dd/mm/yyyy HH:mm:ss
+Handlebars.registerHelper("formatTimestamp", function (timestamp) {
+    if (!timestamp) return "";
+    return moment(timestamp).format("DD/MM/YYYY HH:mm:ss");
+});
+
+// formatação do telefone para o formato (XX) XXXXX-XXXX
+Handlebars.registerHelper("formatPhone", function (phone) {
+  if (!phone) return "";
+  const cleaned = ('' + phone).replace(/\D/g, '');
+  const match = cleaned.match(/^(\d{2})(\d{5})(\d{4})$/);
+  if (match) {
+    return `(${match[1]}) ${match[2]}-${match[3]}`;
+  }
+  return phone;
+});
+
+
+
 
 
 // ### CONFIGURAÇÕES GERAIS ### 

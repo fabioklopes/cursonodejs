@@ -1,0 +1,17 @@
+/* 
+    Cores para determinar o ambiente do usuário de acordo com a sua faixa.
+    
+    O código de cores é baseado no "Sistema Geral de Graduação" da IBJJF, atualizado 
+    em Dez/2025 e pode ser encontrado através da URL: https://cbjj.com.br/graduation-system 
+
+*/
+.white_belt { background-color: #ffffff; }
+.gray_belt { background-color: #939597; }
+.yellow_belt { background-color: #FECA04; }
+.orange_belt { background-color: #E07E26; }
+.green_belt { background-color: #007F3D; }
+.blue_belt { background-color: #1890B9; }
+.purple_belt { background-color: #80298F; }
+.brown_belt { background-color: #602D11; }
+.black_belt { background-color: #000000; }
+.red_belt { background-color: #B01116; }

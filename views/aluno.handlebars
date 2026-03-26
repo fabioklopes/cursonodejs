@@ -4,46 +4,205 @@
     </div>
 {{/if}}
 
-<h1>Página Aluno</h1>
-<table class="table table-striped align-middle table-mobile-stack">
+<h1 class="mb-4">Página Aluno</h1>
+<style>
+    .aluno-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid var(--bs-border-color-translucent);
+    }
+
+    .aluno-link {
+        color: inherit;
+        text-decoration: none;
+        cursor: pointer;
+        text-align: left;
+    }
+
+    .aluno-link:hover {
+        text-decoration: underline;
+    }
+
+    .modal-scroll-interno {
+        max-height: 55vh;
+        overflow-y: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .modal-scroll-interno::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+    }
+
+    .aluno-detail-label {
+        font-weight: 600;
+        color: var(--bs-secondary-color);
+    }
+</style>
+
+<table class="table table-striped align-middle">
     <thead>
         <tr>
-            <th>Nome</th>
-            <th>E-mail</th>
-            <th>Perfil</th>
-            <th>Status</th>
-            <th>WhatsApp</th>
-            <th>Aniversário</th>
-            <th>Faixa</th>
-            <th>Wagi</th>
-            <th>Zubon</th>
-            <th>Obi</th>
-            <th>Dependente</th>
-            <th>Ações</th>
+            <th>Alunos</th>
         </tr>
     </thead>
     <tbody>
         {{#each usuarios}}
             <tr>
-                <td data-label="Nome">{{first_name}} {{last_name}}</td>
-                <td data-label="E-mail">{{email}}</td>
-                <td data-label="Perfil">{{role_label}}</td>
-                <td data-label="Status">{{user_status_label}}</td>
-                <td data-label="WhatsApp">{{phone}}</td>
-                <td data-label="Aniversário">{{birth_date}}</td>
-                <td data-label="Faixa">{{actual_belt}}</td>
-                <td data-label="Wagi">{{wagi_size}}</td>
-                <td data-label="Zubon">{{zubon_size}}</td>
-                <td data-label="Obi">{{obi_size}}</td>
-                <td data-label="Dependente">{{responsible_id}}</td>
-                <td data-label="Ações">
-                    <a href="/aluno/editar/{{id}}" class="btn btn-sm btn-outline-primary">Editar</a>
-                    {{#if can_approve}}
-                        <a href="/aluno/status/{{id}}" class="btn btn-sm btn-success">Aprovar</a>
-                        <a href="/aluno/status/negar/{{id}}" class="btn btn-sm btn-outline-danger">Negar</a>
-                    {{/if}}
+                <td>
+                    <button
+                        type="button"
+                        class="aluno-link d-inline-flex align-items-center gap-2 border-0 bg-transparent p-0 w-100"
+                        data-bs-toggle="modal"
+                        data-bs-target="#alunoModal"
+                        data-first-name="{{first_name}}"
+                        data-last-name="{{last_name}}"
+                        data-email="{{email}}"
+                        data-role="{{role_label}}"
+                        data-status="{{user_status_label}}"
+                        data-phone="{{formatPhone phone}}"
+                        data-birth-date="{{formatDate birth_date}}"
+                        data-belt="{{actual_belt}}"
+                        data-degree="{{actual_degree}}"
+                        data-wagi="{{wagi_size}}"
+                        data-zubon="{{zubon_size}}"
+                        data-obi="{{obi_size}}"
+                        data-responsible="{{responsible_id}}"
+                        data-photo="{{photo}}"
+                    >
+                        <img src="{{photo}}" alt="Avatar de {{first_name}} {{last_name}}" class="aluno-avatar">
+                        <span>{{first_name}} {{last_name}}</span>
+                    </button>
                 </td>
             </tr>
         {{/each}}
     </tbody>
 </table>
+
+<div class="modal fade" id="alunoModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="alunoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0">
+                <h1 class="modal-title fs-5" id="alunoModalLabel">Dados do aluno</h1>
+            </div>
+
+            <div class="modal-body">
+                <div class="modal-scroll-interno pe-1">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <img id="modalAlunoPhoto" src="/uploads/users/default.jpg" alt="Avatar do aluno" class="aluno-avatar">
+                        <div>
+                            <div class="fw-semibold" id="modalAlunoNome">-</div>
+                            <small class="text-body-secondary" id="modalAlunoEmail">-</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Perfil:</span>
+                            <span id="modalAlunoRole">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Status:</span>
+                            <span id="modalAlunoStatus">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">WhatsApp:</span>
+                            <span id="modalAlunoPhone">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Aniversário:</span>
+                            <span id="modalAlunoBirth">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Faixa:</span>
+                            <span id="modalAlunoBelt">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Grau:</span>
+                            <span id="modalAlunoDegree">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Casaco:</span>
+                            <span id="modalAlunoWagi">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Calça:</span>
+                            <span id="modalAlunoZubon">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Faixa (tamanho):</span>
+                            <span id="modalAlunoObi">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Código do responsável:</span>
+                            <span id="modalAlunoResponsible">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer d-block text-center">
+                <hr class="my-2">
+                <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const modal = document.getElementById('alunoModal');
+        if (!modal) {
+            return;
+        }
+
+        const formatBelt = (value) => {
+            if (!value || String(value).trim() === '') {
+                return '-';
+            }
+
+            const normalized = String(value).replaceAll('_', ' ').trim();
+            return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+        };
+
+        const setText = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = value && String(value).trim() !== '' ? value : '-';
+            }
+        };
+
+        modal.addEventListener('show.bs.modal', function(event) {
+            const trigger = event.relatedTarget;
+            if (!trigger) {
+                return;
+            }
+
+            const firstName = trigger.getAttribute('data-first-name') || '';
+            const lastName = trigger.getAttribute('data-last-name') || '';
+            const fullName = `${firstName} ${lastName}`.trim();
+
+            const modalPhoto = document.getElementById('modalAlunoPhoto');
+            if (modalPhoto) {
+                modalPhoto.src = trigger.getAttribute('data-photo') || '/uploads/users/default.jpg';
+                modalPhoto.alt = `Avatar de ${fullName || 'aluno'}`;
+            }
+
+            setText('modalAlunoNome', fullName || '-');
+            setText('modalAlunoEmail', trigger.getAttribute('data-email'));
+            setText('modalAlunoRole', trigger.getAttribute('data-role'));
+            setText('modalAlunoStatus', trigger.getAttribute('data-status'));
+            setText('modalAlunoPhone', trigger.getAttribute('data-phone'));
+            setText('modalAlunoBirth', trigger.getAttribute('data-birth-date'));
+            setText('modalAlunoBelt', formatBelt(trigger.getAttribute('data-belt')));
+            setText('modalAlunoDegree', trigger.getAttribute('data-degree'));
+            setText('modalAlunoWagi', trigger.getAttribute('data-wagi'));
+            setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
+            setText('modalAlunoObi', trigger.getAttribute('data-obi'));
+            setText('modalAlunoResponsible', trigger.getAttribute('data-responsible'));
+        });
+    })();
+</script>

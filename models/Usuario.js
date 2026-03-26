@@ -2,6 +2,10 @@ const db = require('./db');
 
 // tb_usuarios
 const Usuario = db.sequelize.define('tb_usuarios', {
+    user_code: {
+        type: db.Sequelize.STRING(5),
+        unique: true,
+    },
     first_name: db.Sequelize.STRING,
     last_name: db.Sequelize.STRING,
     email: {
@@ -42,15 +46,22 @@ const Usuario = db.sequelize.define('tb_usuarios', {
     actual_belt: {
         type: db.Sequelize.ENUM(
             'white',
-            'gray-white', 'gray', 'gray-black',
-            'yellow-white', 'yellow', 'yellow-black',
-            'orange-white', 'orange', 'orange-black',
-            'green-white', 'green', 'green-black',
+            'gray_white', 'gray', 'gray_black',
+            'yellow_white', 'yellow', 'yellow_black',
+            'orange_white', 'orange', 'orange_black',
+            'green_white', 'green', 'green_black',
             'blue', 'purple', 'brown', 'black'),
         allowNull: false,
         defaultValue: 'white',
         validate: {
-            isIn: [['white', 'gray-white', 'gray', 'gray-black', 'yellow-white', 'yellow', 'yellow-black', 'orange-white', 'orange', 'orange-black', 'green-white', 'green', 'green-black', 'blue', 'purple', 'brown', 'black']]
+            isIn: [[
+                'white', 
+                'gray_white', 'gray', 'gray_black', 
+                'yellow_white', 'yellow', 'yellow_black', 
+                'orange_white', 'orange', 'orange_black', 
+                'green_white', 'green', 'green_black', 
+                'blue', 'purple', 'brown', 'black'
+            ]]
         }
     },
     actual_degree: {
@@ -96,6 +107,14 @@ const Usuario = db.sequelize.define('tb_usuarios', {
     }
 });
 
+
+
+/** 
+ * Nota: Use com cuidado em produção, pois pode resultar em perda de dados.
+ * Opções válidas:
+ * - force: true - Apaga a tabela existente e cria uma nova (perda de dados).
+ * - alter: true - Altera a tabela para corresponder ao modelo, sem apagar dados (recomendado para produção).
+*/
 // Usuario.sync({ alter: true });
 
 module.exports = Usuario;
