@@ -1,12 +1,5 @@
-<h3 class="mb-5">
-    {{#if isEditMode}}
-        <i class="fa-solid fa-user-pen"></i> {{title}}
-    {{else}}
-        <i class="fa-solid fa-user-plus"></i> {{title}}
-    {{/if}}
-</h3>
 {{#if mensagem}}
-    <div class="alert alert-warning text-center alert-autodismiss" role="alert">{{mensagem}}</div>
+<div class="alert alert-warning text-center alert-autodismiss" role="alert">{{mensagem}}</div>
 {{/if}}
 
 <form action="{{formAction}}" method="POST" enctype="multipart/form-data">
@@ -16,7 +9,7 @@
     <div class="row mb-4 text-center g-2 justify-content-center" id="tipo-conta-cards">
         <div class="col-6 col-md-6 d-flex">
             <div class="card w-100 h-100 border-2 selectable-card" id="card-para-mim" role="button" tabindex="0"
-                 style="cursor:pointer;">
+                style="cursor:pointer;">
                 <div class="card-body">
                     <i class="fa-solid fa-person fa-2xl text-primary"></i> <br><br>
                     <h5 class="card-title">Para mim</h5>
@@ -26,7 +19,7 @@
         </div>
         <div class="col-6 col-md-6 d-flex">
             <div class="card w-100 h-100 border-2 selectable-card" id="card-dependente" role="button" tabindex="0"
-                 style="cursor:pointer;">
+                style="cursor:pointer;">
                 <div class="card-body">
                     <i class="fa-solid fa-hands-holding-child fa-2xl text-success"></i> <br><br>
                     <h5 class="card-title">Dependentes</h5>
@@ -43,12 +36,13 @@
                 <h6 class="card-title text-success">
                     <i class="fa-solid fa-circle-check"></i> Verificação da conta titular
                 </h6>
-                <p class="text-muted small">Informe o e-mail da conta responsável (titular). Ela precisa estar ativa no sistema.</p>
+                <p class="text-muted small">Informe o e-mail da conta responsável (titular). Ela precisa estar ativa no
+                    sistema.</p>
 
                 <div id="verificar-form-group">
                     <div class="input-group mb-2">
                         <input type="email" class="form-control" id="titular-email-input"
-                               placeholder="E-mail do titular" autocomplete="off">
+                            placeholder="E-mail do titular" autocomplete="off">
                         <button type="button" class="btn btn-success" id="btn-verificar-titular">
                             <i class="fa-solid fa-magnifying-glass"></i> Verificar
                         </button>
@@ -74,133 +68,145 @@
 
     <!-- Formulário principal (oculto até o usuário escolher o tipo de conta no modo de cadastro) -->
     <div id="form-fields-container" style="{{#if isEditMode}}display:block{{else}}display:none{{/if}}">
-    <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="first_name" value="{{usuario.first_name}}" placeholder="" {{#if isEditMode}}readonly{{/if}}>
-        <label for="firstName">Primeiro nome</label>
-    </div>
-
-    <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="last_name" value="{{usuario.last_name}}" placeholder="" {{#if isEditMode}}readonly{{/if}}>
-        <label for="lastName">Restante do nome</label>
-    </div>
-
-    <div class="form-floating mb-3">
-        <input type="email" class="form-control" name="email" id="email-input" value="{{usuario.email}}" placeholder="" required>
-        <label for="email">E-mail</label>
-        <div class="form-text text-muted" id="email-hint-dependente" style="display:none;">
-            Para dependentes, o e-mail é opcional. Se não preenchido, será gerado automaticamente.
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" name="first_name" value="{{usuario.first_name}}" placeholder=""
+                {{#if isEditMode}}readonly{{/if}}>
+            <label for="firstName">Primeiro nome</label>
         </div>
-    </div>
 
-    <div class="form-floating mb-3">
-        <input type="password" class="form-control" name="password1" placeholder="" {{#unless isEditMode}}required{{/unless}}>
-        <label for="password1">{{#if isEditMode}}Nova senha (opcional){{else}}Senha{{/if}}</label>
-    </div>
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" name="last_name" value="{{usuario.last_name}}" placeholder="" {{#if
+                isEditMode}}readonly{{/if}}>
+            <label for="lastName">Restante do nome</label>
+        </div>
 
-    <div class="form-floating mb-3">
-        <input type="password" class="form-control" name="password2" placeholder="" {{#unless isEditMode}}required{{/unless}}>
-        <label for="password">{{#if isEditMode}}Repita a nova senha{{else}}Repita a sua senha{{/if}}</label>
-    </div>
+        <div class="form-floating mb-3">
+            <input type="email" class="form-control" name="email" id="email-input" value="{{usuario.email}}"
+                placeholder="" required>
+            <label for="email">E-mail</label>
+            <div class="form-text text-muted" id="email-hint-dependente" style="display:none;">
+                Para dependentes, o e-mail é opcional. Se não preenchido, será gerado automaticamente.
+            </div>
+        </div>
 
-    <div class="form-floating mb-3">
-        <input type="phone" class="form-control" name="phone" value="{{usuario.phone}}" placeholder="" required>
-        <label for="phone">WhatsApp (apenas números)</label>
-    </div>
+        <div class="form-floating mb-3">
+            <input type="password" class="form-control" name="password1" placeholder="" {{#unless
+                isEditMode}}required{{/unless}}>
+            <label for="password1">{{#if isEditMode}}Nova senha (opcional){{else}}Senha{{/if}}</label>
+        </div>
 
-    <div class="form-floating mb-3">
-        <input type="date" class="form-control" name="birth_date" value="{{usuario.birth_date}}" placeholder="" {{#if isEditMode}}readonly{{else}}required{{/if}}>
-        <label for="birth_date">Aniversário</label>
-    </div>
+        <div class="form-floating mb-3">
+            <input type="password" class="form-control" name="password2" placeholder="" {{#unless
+                isEditMode}}required{{/unless}}>
+            <label for="password">{{#if isEditMode}}Repita a nova senha{{else}}Repita a sua senha{{/if}}</label>
+        </div>
 
-    <div class="form-floating mb-3">
-        <select class="form-select" name="actual_belt" aria-label="" required>
-            <option value="">-- Selecione --</option>
-            {{#each beltOptions}}
+        <div class="form-floating mb-3">
+            <input type="phone" class="form-control" name="phone" value="{{usuario.phone}}" placeholder="" required>
+            <label for="phone">WhatsApp (apenas números)</label>
+        </div>
+
+        <div class="form-floating mb-3">
+            <input type="date" class="form-control" name="birth_date" value="{{usuario.birth_date}}" placeholder="" {{#if isEditMode}}readonly{{else}}required{{/if}}>
+            <label for="birth_date">Aniversário</label>
+        </div>
+
+        <div class="form-floating mb-3">
+            <select class="form-select" name="actual_belt" aria-label="" required>
+                <option value="">-- Selecione --</option>
+                {{#each beltOptions}}
                 <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
-            {{/each}}
-        </select>
-        <label for="actual_belt">Faixa Atual</label>
-    </div>
-
-    <div class="form-floating mb-3">
-        <input type="number" min="0" max="6" class="form-control" name="actual_degree" value="{{usuario.actual_degree}}" placeholder="" required>
-        <label for="actual_degree">Grau (se não tiver grau, coloque zero)</label>
-    </div>
-
-    <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="wagi_size" value="{{usuario.wagi_size}}" placeholder="" required>
-        <label for="wagi_size">Tamanho do Wagi (parte de cima do kimono)</label>
-    </div>
-
-    <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="zubon_size" value="{{usuario.zubon_size}}" placeholder="" required>
-        <label for="zubon_size">Tamanho da Zubon (calça do kimono)</label>
-    </div>
-
-    <div class="form-floating mb-3">
-        <input type="text" class="form-control" name="obi_size" value="{{usuario.obi_size}}" placeholder="" required>
-        <label for="obi_size">Tamanho da faixa</label>
-    </div>
-
-    {{#if isEditMode}}
-    <div class="form-floating mb-3">
-        <input type="text" class="form-control" value="{{usuario.photo}}" readonly>
-        <label for="photo">Foto atual no banco</label>
-    </div>
-    {{/if}}
-
-    <div class="mb-3">
-        <label for="photo-input" class="form-label text-danger">
-            Envie uma foto sua, de rosto, para o seu avatar de perfil
-        </label>
-        <label for="photo-input" class="form-label text-secondary">
-            A foto é importantes para o professor aprovar as suas presenças nas aulas. Se você não enviar uma foto, o seu perfil ficará com um avatar genérico e o professor não conseguirá identificar você para aprovar suas presenças.
-        </label>
-        <input type="file" class="form-control" id="photo-input" name="photo" accept="image/*" placeholder="">
-        <small class="form-text text-muted small">Máximo 1MB. Enquadre seu rosto em uma área de 200x200 pixels.</small>
-    </div>
-
-    {{#if isEditMode}}
-    <div class="mb-3">
-        <label class="form-label">Avatar atual</label>
-        <div style="width: 120px; height: 120px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;">
-            <img src="{{usuario.photo}}" alt="Avatar atual" style="width: 100%; height: 100%; object-fit: cover;">
+                {{/each}}
+            </select>
+            <label for="actual_belt">Faixa Atual</label>
         </div>
-    </div>
-    {{/if}}
 
-    <!-- Visualização e corte da imagem -->
-    <div id="crop-container" class="mb-3" style="display: none;">
-        <div class="card">
-            <div class="card-body">
-                <h6 class="card-title">Ajuste sua foto</h6>
-                <div style="max-height: 400px; overflow: hidden; margin-bottom: 15px;">
-                    <img id="cropper-image" style="max-width: 100%;" />
-                </div>
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-sm btn-secondary" id="rotate-left"><i
-                            class="fa-solid fa-rotate-left"></i> Girar</button>
-                    <button type="button" class="btn btn-sm btn-success" id="crop-confirm"><i
-                            class="fa-solid fa-check"></i> Usar esta imagem</button>
-                    <button type="button" class="btn btn-sm btn-danger" id="crop-cancel"><i
-                            class="fa-solid fa-times"></i> Cancelar</button>
+        <div class="form-floating mb-3">
+            <input type="number" min="0" max="6" class="form-control" name="actual_degree"
+                value="{{usuario.actual_degree}}" placeholder="" required>
+            <label for="actual_degree">Grau (se não tiver grau, coloque zero)</label>
+        </div>
+
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" name="wagi_size" value="{{usuario.wagi_size}}" placeholder=""
+                required>
+            <label for="wagi_size">Tamanho - Parte de cima do kimono (Wagi)</label>
+        </div>
+
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" name="zubon_size" value="{{usuario.zubon_size}}" placeholder=""
+                required>
+            <label for="zubon_size">Tamanho - Parte de baixo do kimono (Zubon)</label>
+        </div>
+
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" name="obi_size" value="{{usuario.obi_size}}" placeholder=""
+                required>
+            <label for="obi_size">Tamanho - Faixa (Obi)</label>
+        </div>
+
+        {{#if isEditMode}}
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" value="{{usuario.photo}}" readonly>
+            <label for="photo">Foto atual no banco</label>
+        </div>
+        {{/if}}
+
+        <div class="mb-3">
+            <label for="photo-input" class="form-label text-danger">
+                Envie uma foto sua, de rosto, para o seu avatar de perfil
+            </label>
+            <label for="photo-input" class="form-label text-secondary">
+                A foto é importantes para o professor aprovar as suas presenças nas aulas. Se você não enviar uma foto,
+                o seu perfil ficará com um avatar genérico e o professor não conseguirá identificar você para aprovar
+                suas presenças.
+            </label>
+            <input type="file" class="form-control" id="photo-input" name="photo" accept="image/*" placeholder="" required>
+            <small class="form-text text-muted small">Máximo 1MB. Enquadre seu rosto em uma área de 200x200
+                pixels.</small>
+        </div>
+
+        {{#if isEditMode}}
+        <div class="mb-3">
+            <label class="form-label">Avatar atual</label>
+            <div style="width: 120px; height: 120px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;">
+                <img src="{{usuario.photo}}" alt="Avatar atual" style="width: 100%; height: 100%; object-fit: cover;">
+            </div>
+        </div>
+        {{/if}}
+
+        <!-- Visualização e corte da imagem -->
+        <div id="crop-container" class="mb-3" style="display: none;">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">Ajuste sua foto</h6>
+                    <div style="max-height: 400px; overflow: hidden; margin-bottom: 15px;">
+                        <img id="cropper-image" style="max-width: 100%;" />
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-sm btn-secondary" id="rotate-left"><i
+                                class="fa-solid fa-rotate-left"></i> Girar</button>
+                        <button type="button" class="btn btn-sm btn-success" id="crop-confirm"><i
+                                class="fa-solid fa-check"></i> Usar esta imagem</button>
+                        <button type="button" class="btn btn-sm btn-danger" id="crop-cancel"><i
+                                class="fa-solid fa-times"></i> Cancelar</button>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Visualização da imagem recortada -->
-    <div id="preview-container" class="mb-3" style="display: none;">
-        <label class="form-label">Prévia da sua foto:</label>
-        <div style="width: 200px; height: 200px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;">
-            <img id="preview-image" style="width: 100%; height: 100%; object-fit: cover;" />
+        <!-- Visualização da imagem recortada -->
+        <div id="preview-container" class="mb-3" style="display: none;">
+            <label class="form-label">Prévia da sua foto:</label>
+            <div style="width: 200px; height: 200px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden;">
+                <img id="preview-image" style="width: 100%; height: 100%; object-fit: cover;" />
+            </div>
+            <input type="hidden" id="photo-data" />
         </div>
-        <input type="hidden" id="photo-data" />
-    </div>
 
-    <button type="submit" class="btn btn-primary">{{submitLabel}}</button>
+        <button type="submit" class="btn btn-primary">{{submitLabel}}</button>
 
-    <!-- Fecha form-fields-container (novo) ou div vazio de editMode -->
+        <!-- Fecha form-fields-container (novo) ou div vazio de editMode -->
     </div>
 </form>
 
@@ -299,19 +305,19 @@
 {{#unless isEditMode}}
 <script>
     (function () {
-        const cardParaMim    = document.getElementById('card-para-mim');
+        const cardParaMim = document.getElementById('card-para-mim');
         const cardDependente = document.getElementById('card-dependente');
         const verificarContainer = document.getElementById('verificar-titular-container');
         const formFieldsContainer = document.getElementById('form-fields-container');
-        const responsibleIdInput  = document.getElementById('responsible-id-input');
-        const emailInput          = document.getElementById('email-input');
-        const emailHintDep        = document.getElementById('email-hint-dependente');
-        const titularEmailInput   = document.getElementById('titular-email-input');
-        const btnVerificar        = document.getElementById('btn-verificar-titular');
-        const titularFeedback     = document.getElementById('titular-feedback');
+        const responsibleIdInput = document.getElementById('responsible-id-input');
+        const emailInput = document.getElementById('email-input');
+        const emailHintDep = document.getElementById('email-hint-dependente');
+        const titularEmailInput = document.getElementById('titular-email-input');
+        const btnVerificar = document.getElementById('btn-verificar-titular');
+        const titularFeedback = document.getElementById('titular-feedback');
         const titularVerificadoInfo = document.getElementById('titular-verificado-info');
-        const titularNome         = document.getElementById('titular-nome');
-        const btnTrocarTitular    = document.getElementById('btn-trocar-titular');
+        const titularNome = document.getElementById('titular-nome');
+        const btnTrocarTitular = document.getElementById('btn-trocar-titular');
 
         function selecionarCard(cardSelecionado, cardOutro) {
             cardSelecionado.classList.add('border-primary', 'bg-primary-subtle');

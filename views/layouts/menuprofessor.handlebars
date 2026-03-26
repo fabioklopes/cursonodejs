@@ -9,21 +9,21 @@
     <ul class="dropdown-menu">
         <!-- Menu: para você -->
         <li class="dropdown-header text-muted">Para você</li>
-        <li><a class="dropdown-item" href="#"> <i class="fa-solid fa-clipboard-user me-2"></i> Meu Perfil </a></li>
+        <li><a class="dropdown-item" href="#"> <i class="fa-solid fa-clipboard-user"></i> Meu Perfil </a></li>
 
 
         <!-- Menu: você no controle -->
         <li><hr class="dropdown-divider"></li>
         <li class="dropdown-header text-muted">Você no controle</li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-folder-tree me-2"></i> Turmas</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-folder-plus me-2"></i> Criar nova turma</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-calendar-check me-2"></i> Gerenciar presença</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-user-graduate me-2"></i> Gerenciar alunos</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-person-arrow-up-from-line me-2"></i> Promover aluno</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-ruler-horizontal me-2"></i> Tamanhos e medidas</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-trophy me-2"></i> Rankings internos</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-arrow-up-right-dots me-2"></i> Meta de aulas</a></li>
-        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-pie me-2"></i> Relatórios</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-folder-tree"></i> Turmas</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-folder-plus"></i> Criar nova turma</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-calendar-check"></i> Gerenciar presença</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-user-graduate"></i> Gerenciar alunos</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-person-arrow-up-from-line"></i> Promover aluno</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-ruler-horizontal"></i> Tamanhos e medidas</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-trophy"></i> Rankings internos</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-arrow-up-right-dots"></i> Meta de aulas</a></li>
+        <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-pie"></i> Relatórios</a></li>
 
         {{#if dependentes}}
         <li>
@@ -33,31 +33,28 @@
         {{#each dependentes}}
         <li>
             <a class="dropdown-item" href="/conta/trocar/{{id}}">
-                <i class="fa-solid fa-child me-2"></i> {{first_name}} {{last_name}}
+                <i class="fa-solid fa-child"></i> {{first_name}} {{last_name}}
             </a>
         </li>
         {{/each}}
         {{/if}}
 
         {{#if viewingAs}}
-        <li>
-            <hr class="dropdown-divider">
-        </li>
+        <li><hr class="dropdown-divider"></li>
         <li>
             <a class="dropdown-item text-warning" href="/conta/voltar">
-                <i class="fa-solid fa-arrow-left me-2"></i> Voltar para minha conta
+                <i class="fa-solid fa-arrows-rotate"></i> Voltar para minha conta
             </a>
         </li>
         {{/if}}
 
-        <li>
-            <hr class="dropdown-divider">
-        </li>
+        <!-- Menu: sair do sistema -->
+        <li><hr class="dropdown-divider"></li>
         <li class="dropdown-header text-muted">Sair do sistema</li>
         <li>
             <form action="/auth/logout" method="POST" class="px-3 py-1">
                 <button type="submit" class="dropdown-item text-danger p-0 border-0 bg-transparent text-start">
-                    <i class="fa-solid fa-person-walking-arrow-right me-2"></i> Encerrar
+                    <i class="fa-solid fa-person-walking-arrow-right"></i> Encerrar sessão
                 </button>
             </form>
         </li>
