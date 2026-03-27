@@ -136,6 +136,10 @@
                         data-birth-date="{{formatDate birth_date}}"
                         data-belt="{{actual_belt}}"
                         data-degree="{{actual_degree}}"
+                        data-belt-label="{{belt_label}}"
+                        data-degree-label="{{degree_label}}"
+                        data-belt-summary="{{belt_summary_label}}"
+                        data-belt-image="{{belt_image_path}}"
                         data-wagi="{{wagi_size}}"
                         data-zubon="{{zubon_size}}"
                         data-obi="{{obi_size}}"
@@ -239,11 +243,11 @@
                         </div>
                         <div class="col-12">
                             <span class="aluno-detail-label">Faixa:</span>
-                            <span id="modalAlunoBelt">-</span>
+                            <img id="modalAlunoBeltImage" src="/img/belts/white_0.png" alt="Faixa do aluno" class="img-fluid" style="max-height: 32px;">
                         </div>
                         <div class="col-12">
-                            <span class="aluno-detail-label">Grau:</span>
-                            <span id="modalAlunoDegree">-</span>
+                            <span class="aluno-detail-label">Faixa:</span>
+                            <span id="modalAlunoBeltSummary">-</span>
                         </div>
                         <div class="col-12">
                             <span class="aluno-detail-label">Casaco:</span>
@@ -280,14 +284,7 @@
             return;
         }
 
-        const formatBelt = (value) => {
-            if (!value || String(value).trim() === '') {
-                return '-';
-            }
-
-            const normalized = String(value).replaceAll('_', ' ').trim();
-            return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-        };
+        let lastTrigger = null;
 
         const setText = (id, value) => {
             const el = document.getElementById(id);
@@ -298,6 +295,7 @@
 
         modal.addEventListener('show.bs.modal', function(event) {
             const trigger = event.relatedTarget;
+            lastTrigger = trigger || null;
             if (!trigger) {
                 return;
             }
@@ -318,12 +316,38 @@
             setText('modalAlunoStatus', trigger.getAttribute('data-status'));
             setText('modalAlunoPhone', trigger.getAttribute('data-phone'));
             setText('modalAlunoBirth', trigger.getAttribute('data-birth-date'));
-            setText('modalAlunoBelt', formatBelt(trigger.getAttribute('data-belt')));
-            setText('modalAlunoDegree', trigger.getAttribute('data-degree'));
+            setText('modalAlunoBeltSummary', trigger.getAttribute('data-belt-summary'));
             setText('modalAlunoWagi', trigger.getAttribute('data-wagi'));
             setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
             setText('modalAlunoObi', trigger.getAttribute('data-obi'));
             setText('modalAlunoResponsible', trigger.getAttribute('data-responsible'));
+
+            const modalBeltImage = document.getElementById('modalAlunoBeltImage');
+            if (modalBeltImage) {
+                const beltImagePath = trigger.getAttribute('data-belt-image') || '/img/belts/white_0.png';
+                const beltLabel = trigger.getAttribute('data-belt-label') || 'Faixa';
+                const beltValue = trigger.getAttribute('data-belt') || 'white';
+
+                modalBeltImage.onerror = function() {
+                    this.onerror = null;
+                    this.src = `/img/belts/${beltValue}_0.png`;
+                };
+                modalBeltImage.src = beltImagePath;
+                modalBeltImage.alt = `Faixa ${beltLabel}`;
+            }
+        });
+
+        modal.addEventListener('hide.bs.modal', function() {
+            const focusedElement = document.activeElement;
+            if (focusedElement && modal.contains(focusedElement) && typeof focusedElement.blur === 'function') {
+                focusedElement.blur();
+            }
+        });
+
+        modal.addEventListener('hidden.bs.modal', function() {
+            if (lastTrigger && document.contains(lastTrigger) && typeof lastTrigger.focus === 'function') {
+                lastTrigger.focus();
+            }
         });
     })();
 </script>

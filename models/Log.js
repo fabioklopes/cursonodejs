@@ -1,24 +1,28 @@
-import db from './db.js';
-const { sequelize, Sequelize } = db;
+const db = require('./db');
 
 // tb_log
-const Log = sequelize.define('tb_log', {
-    user_code: Sequelize.STRING(5),
-    email: Sequelize.STRING(255),
-    description: Sequelize.STRING,
+const Log = db.sequelize.define('tb_log', {
+    user_code: db.Sequelize.STRING(5),
+    email: db.Sequelize.STRING(255),
+    description: db.Sequelize.STRING,
     status :{
-        type: Sequelize.ENUM('SUCCESS', 'FAIL'),
+        type: db.Sequelize.ENUM('SUCCESS', 'FAIL')
     }
 });
 
 Log.associate = models => {
+    if (!models || !models.Usuario) {
+        return;
+    }
+
     Log.belongsTo(models.Usuario, {
         foreignKey: 'user_code',
-        targetKey: 'user_code',
-    }),
+        targetKey: 'user_code'
+    });
+
     Log.belongsTo(models.Usuario, {
         foreignKey: 'email',
-        targetKey: 'email',
+        targetKey: 'email'
     });
 };
 
@@ -32,4 +36,4 @@ Log.associate = models => {
 */
 // Log.sync({ alter: true });
 
-export default Log;
+module.exports = Log;

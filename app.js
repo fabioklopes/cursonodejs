@@ -1,3 +1,6 @@
+// configurações de ambiente
+require('dotenv').config();
+
 const express = require('express');
 const app = express();
 
@@ -12,6 +15,8 @@ const argon2 = require('argon2');
 const { Op } = require('sequelize');
 const Usuario = require('./models/Usuario');
 const generatedCode = require('./utils/usercode_generator');
+
+
 
 
 // configuração gerais da aplicação / momento de execução
@@ -107,7 +112,7 @@ function hasProfessorAccess(usuarioSessao) {
 }
 
 function getDefaultRedirectByRole(role) {
-    return ['PRO', 'ADM'].includes(role) ? '/dashboard' : '/aluno';
+    return ['PRO', 'ADM'].includes(role) ? '/dashboard' : '/dashboardaluno';
 }
 
 // Helper para exibir o nome completo do perfil do usuário
@@ -146,24 +151,120 @@ const upload = multer({ storage });
 
 // Faixas x valor x label
 const BELT_OPTIONS = [
-    { value: 'white', label: 'Branca' },
-    { value: 'gray_white', label: 'Cinza e Branca' },
-    { value: 'gray', label: 'Cinza' },
-    { value: 'gray_black', label: 'Cinza e Preta' },
-    { value: 'yellow_white', label: 'Amarela e Branca' },
-    { value: 'yellow', label: 'Amarela' },
-    { value: 'yellow_black', label: 'Amarela e Preta' },
-    { value: 'orange_white', label: 'Laranja e Branca' },
-    { value: 'orange', label: 'Laranja' },
-    { value: 'orange_black', label: 'Laranja e Preta' },
-    { value: 'green_white', label: 'Verde e Branca' },
-    { value: 'green', label: 'Verde' },
-    { value: 'green_black', label: 'Verde e Preta' },
-    { value: 'blue', label: 'Azul' },
-    { value: 'purple', label: 'Roxa' },
-    { value: 'brown', label: 'Marrom' },
-    { value: 'black', label: 'Preta' }
+    { value: 'white', label: 'Branca', order: 1 },
+    { value: 'gray_white', label: 'Cinza e Branca', order: 2 },
+    { value: 'gray', label: 'Cinza', order: 3 },
+    { value: 'gray_black', label: 'Cinza e Preta', order: 4 },
+    { value: 'yellow_white', label: 'Amarela e Branca', order: 5 },
+    { value: 'yellow', label: 'Amarela', order: 6 },
+    { value: 'yellow_black', label: 'Amarela e Preta', order: 7 },
+    { value: 'orange_white', label: 'Laranja e Branca', order: 8 },
+    { value: 'orange', label: 'Laranja', order: 9 },
+    { value: 'orange_black', label: 'Laranja e Preta', order: 10 },
+    { value: 'green_white', label: 'Verde e Branca', order: 11 },
+    { value: 'green', label: 'Verde', order: 12 },
+    { value: 'green_black', label: 'Verde e Preta', order: 13 },
+    { value: 'blue', label: 'Azul', order: 14 },
+    { value: 'purple', label: 'Roxa', order: 15 },
+    { value: 'brown', label: 'Marrom', order: 16 },
+    { value: 'black', label: 'Preta', order: 17 }
 ];
+const BLACK_BELT_VALUE = 'black';
+
+const BELT_MAP = BELT_OPTIONS.reduce((acc, option) => {
+    acc[option.value] = option;
+    return acc;
+}, {});
+
+function getMaxDegreeForBelt(actualBelt) {
+    return actualBelt === BLACK_BELT_VALUE ? 6 : 4;
+}
+
+function getDegreeValidationMessage(actualBelt) {
+    return actualBelt === BLACK_BELT_VALUE
+        ? 'Faixa preta permite graus entre 0 e 6.'
+        : 'A faixa selecionada permite graus entre 0 e 4.';
+}
+
+function parseDegreeStrict(value) {
+    const normalized = String(value ?? '').trim();
+    if (!/^\d+$/.test(normalized)) {
+        return null;
+    }
+
+    const degree = parseInt(normalized, 10);
+    return Number.isInteger(degree) ? degree : null;
+}
+
+function normalizeDegreeForBelt(actualBelt, actualDegree) {
+    const parsedDegree = parseDegree(actualDegree);
+    const maxDegree = getMaxDegreeForBelt(actualBelt);
+    return Math.min(Math.max(parsedDegree, 0), maxDegree);
+}
+
+function validateBeltAndDegree(actualBelt, actualDegree) {
+    const beltValue = String(actualBelt || '').trim();
+    if (!beltValue || !BELT_MAP[beltValue]) {
+        return {
+            isValid: false,
+            field: 'actual_belt',
+            message: 'Faixa selecionada é inválida.'
+        };
+    }
+
+    const parsedDegree = parseDegreeStrict(actualDegree);
+    const maxDegree = getMaxDegreeForBelt(beltValue);
+
+    if (parsedDegree === null || parsedDegree < 0 || parsedDegree > maxDegree) {
+        return {
+            isValid: false,
+            field: 'actual_degree',
+            message: getDegreeValidationMessage(beltValue)
+        };
+    }
+
+    return {
+        isValid: true,
+        beltValue,
+        degreeValue: String(parsedDegree)
+    };
+}
+
+function parseDegree(value) {
+    const degree = parseInt(value, 10);
+    if (!Number.isInteger(degree) || degree < 0) {
+        return 0;
+    }
+    return degree;
+}
+
+function getBeltDisplayData(actualBelt, actualDegree) {
+    const beltValue = (actualBelt || '').trim();
+    const degree = normalizeDegreeForBelt(beltValue, actualDegree);
+
+    if (!beltValue || !BELT_MAP[beltValue]) {
+        return {
+            beltValue,
+            beltLabel: '-',
+            degree,
+            degreeLabel: 'Nenhum Grau',
+            summaryLabel: '-',
+            imagePath: '/img/belts/white_0.png'
+        };
+    }
+
+    const beltLabel = BELT_MAP[beltValue].label;
+    const degreeLabel = degree === 0 ? 'Nenhum Grau' : `${degree} ${degree === 1 ? 'Grau' : 'Graus'}`;
+
+    return {
+        beltValue,
+        beltLabel,
+        degree,
+        degreeLabel,
+        summaryLabel: `${beltLabel} - ${degreeLabel}`,
+        imagePath: `/img/belts/${beltValue}_${degree}.png`
+    };
+}
 
 function formatTimestampForFile(dateValue) {
     const date = new Date(dateValue);
@@ -306,16 +407,23 @@ function buildUserFormViewModel(usuario, isEditMode) {
 // ### CONFIGURAÇÃO DAS ROTAS ###
 // rota principal
 app.get('/', (req, res) => {
-    res.redirect('/dashboard');
+    return res.redirect(getDefaultRedirectByRole(req.session.usuario.role));
 });
 
 app.get('/dashboard', (req, res) => {
     if (!hasProfessorAccess(req.session.usuario)) {
-        const mensagem = 'Acesso permitido apenas para professor ou administrador.';
-        return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+        return res.redirect('/dashboardaluno');
     }
 
-    return res.render('dashboard');
+    return res.render('dashboardprofessor');
+});
+
+app.get('/dashboardaluno', (req, res) => {
+    if (hasProfessorAccess(req.session.usuario)) {
+        return res.redirect('/dashboard');
+    }
+
+    return res.render('dashboardaluno');
 });
 
 
@@ -363,11 +471,17 @@ app.get('/aluno', async (req, res) => {
 
         const lista = usuarios.map((u) => {
             const usuario = u.get({ plain: true });
+            const beltDisplay = getBeltDisplayData(usuario.actual_belt, usuario.actual_degree);
+
             return {
                 ...usuario,
                 role_label: getRoleLabel(usuario.role),
                 user_status_label: usuario.user_status === 'P' ? 'Pendente' : usuario.user_status === 'A' ? 'Ativo' : 'Cancelado',
-                can_approve: hasProfessorPrivileges && usuario.user_status === 'P'
+                can_approve: hasProfessorPrivileges && usuario.user_status === 'P',
+                belt_label: beltDisplay.beltLabel,
+                degree_label: beltDisplay.degreeLabel,
+                belt_summary_label: beltDisplay.summaryLabel,
+                belt_image_path: beltDisplay.imagePath
             };
         });
 
@@ -565,6 +679,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
     try {
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
         const isDependent = !!responsibleId;
+        const beltDegreeValidation = validateBeltAndDegree(req.body.actual_belt, req.body.actual_degree);
 
         // Validar titular se for dependente
         if (isDependent) {
@@ -605,6 +720,18 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             return renderFormWithError('Corrija os campos em desconformidade abaixo.', fieldErrors);
         }
 
+        if (!beltDegreeValidation.isValid) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+
+            fieldErrors[beltDegreeValidation.field] = beltDegreeValidation.message;
+            return renderFormWithError('Corrija os campos em desconformidade abaixo.', fieldErrors);
+        }
+
         const passwordHash = await argon2.hash(senha);
 
         // E-mail para dependente: gerado internamente se não fornecido
@@ -623,8 +750,8 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             user_status: 'P',
             phone: req.body.phone,
             birth_date: req.body.birth_date,
-            actual_belt: req.body.actual_belt,
-            actual_degree: req.body.actual_degree,
+            actual_belt: beltDegreeValidation.beltValue,
+            actual_degree: beltDegreeValidation.degreeValue,
             wagi_size: req.body.wagi_size,
             zubon_size: req.body.zubon_size,
             obi_size: req.body.obi_size,
@@ -666,7 +793,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
                     } else if (error.path === 'actual_belt') {
                         fieldErrors[error.path] = 'Faixa selecionada é inválida.';
                     } else if (error.path === 'actual_degree') {
-                        fieldErrors[error.path] = 'Grau deve estar entre 0 e 6.';
+                        fieldErrors[error.path] = 'Grau inválido para a faixa selecionada.';
                     } else {
                         fieldErrors[error.path] = error.message;
                     }
@@ -717,6 +844,7 @@ app.get('/aluno/editar/:id', async (req, res) => {
 
 app.post('/aluno/editar/:id', upload.single('photo'), async (req, res) => {
     const alunoId = req.params.id;
+    const beltDegreeValidation = validateBeltAndDegree(req.body.actual_belt, req.body.actual_degree);
 
     try {
         const usuario = await Usuario.findByPk(alunoId);
@@ -734,8 +862,21 @@ app.post('/aluno/editar/:id', upload.single('photo'), async (req, res) => {
 
         usuario.email = req.body.email;
         usuario.phone = req.body.phone;
-        usuario.actual_belt = req.body.actual_belt;
-        usuario.actual_degree = req.body.actual_degree;
+
+        if (!beltDegreeValidation.isValid) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+
+            const mensagem = beltDegreeValidation.message;
+            return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+        }
+
+        usuario.actual_belt = beltDegreeValidation.beltValue;
+        usuario.actual_degree = beltDegreeValidation.degreeValue;
         usuario.wagi_size = req.body.wagi_size;
         usuario.zubon_size = req.body.zubon_size;
         usuario.obi_size = req.body.obi_size;
@@ -956,7 +1097,7 @@ app.post('/auth/logout', function(req, res) {
 
 // ### FORMATADORES PARA HANDLEBARS ###
 const Handlebars = require("handlebars");
-const moment = require("moment"); // CDN importado em main.handlebars
+const moment = require("moment");
 
 // data no formato DD/MM/YYYY
 Handlebars.registerHelper("formatDate", function (date) {
@@ -1008,10 +1149,11 @@ app.set('view engine', 'handlebars');
 
 
 // execução do servidor
-app.listen(8080, function() {
+const PORT = process.env.ENV_PORT || 3000;
+app.listen(PORT, function() {
     console.clear();
     console.log('Servidor funcionando...');
-    console.log('Acesse http://localhost:8080 para ver o app.');
+    console.log(`Acesse http://localhost:${PORT} para ver o app.`);
 });
 
 

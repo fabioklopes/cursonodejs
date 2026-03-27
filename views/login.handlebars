@@ -1,53 +1,54 @@
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <title>Sistema Oss - Gestão de Jiu-jitsu</title>
-</head>
-<body>
-    <div class="container mt-2 p-1 d-flex flex-column align-items-center" style="max-width: 400px;">
-        <img src="/img/logotipo_transparente.png" alt="Logotipo CRTN" class="img-fluid mb-3" width="50">
-        <h3>Login</h3>
 
-        {{#if erro}}
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link href="/css/bootstrap.min.css" rel="stylesheet">
+        <link rel="icon" href="/img/logotipo.ico">
+        <title>Sistema Oss - Gestão de Jiu-jitsu</title>
+    </head>
+
+    <body>
+        <div class="container mt-2 p-1 d-flex flex-column align-items-center" style="max-width: 400px;">
+            <img src="/img/logotipo_transparente.png" alt="Logotipo CRTN" class="img-fluid mb-3" width="50">
+            <h3>Login</h3>
+
+            {{#if erro}}
             <div class="alert alert-danger alert-autodismiss" role="alert">{{erro}}</div>
-        {{/if}}
-        {{#if aviso}}
+            {{/if}}
+            {{#if aviso}}
             <div class="alert alert-warning alert-autodismiss" role="alert">{{aviso}}</div>
-        {{/if}}
+            {{/if}}
 
-        <form action="/auth/verify" method="POST" class="mb-3">
-            <input type="hidden" name="redirect" value="{{redirect}}">
-            <div class="mb-3">
-                <label for="email" class="form-label">E-mail</label>
-                <input type="email" class="form-control" id="email" name="email" autocomplete="email" required>
-            </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Senha</label>
-                <input type="password" class="form-control" id="password" name="password" autocomplete="new-password" required>
-            </div>
+            <form action="/auth/verify" method="POST" class="mb-3">
+                <input type="hidden" name="redirect" value="{{redirect}}">
+                <div class="mb-3">
+                    <label for="email" class="form-label">E-mail</label>
+                    <input type="email" class="form-control" id="email" name="email" autocomplete="email" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Senha</label>
+                    <input type="password" class="form-control" id="password" name="password"
+                        autocomplete="new-password" required>
+                </div>
 
-            <!-- Esqueci a senha -->
-            <div class="mb-3 text-center">
-                <a href="#" class="link-secondary">Esqueci minha senha</a>
-            </div>
-            
-            <!-- Botões de acesso / solicitação de cesso -->
-            <div class="d-flex justify-content-center gap-2">
-                <button type="submit" class="btn btn-outline-primary"><i class="fa-solid fa-unlock"></i> Entrar</button> 
-                                
-                <a href="/aluno/novo" class="btn btn-outline-secondary"><i class="fa-solid fa-person-circle-plus"></i> Solicitar acesso</a>
-            </div>
+                <!-- Esqueci a senha -->
+                <div class="mb-3 text-center">
+                    <a href="#" class="link-secondary">Esqueci minha senha</a>
+                </div>
 
-        </form>
-    </div>
+                <!-- Botões de acesso / solicitação de cesso -->
+                <div class="d-flex justify-content-center gap-2">
+                    <button type="submit" class="btn btn-outline-primary">Entrar</button>
 
+                    <a href="/aluno/novo" class="btn btn-outline-secondary">Solicitar acesso</a>
+                </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js"></script>
-    <script src="/js/auto-dismiss.js"></script>
-</body>
+            </form>
+        </div>
+
+        <script src="/js/auto-dismiss.js" defer></script>
+    </body>
+
 </html>

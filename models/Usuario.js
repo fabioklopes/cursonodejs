@@ -69,7 +69,20 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         allowNull: false,
         defaultValue: '0',
         validate: {
-            isIn: [['0', '1', '2', '3', '4', '5', '6']]
+            isIn: [['0', '1', '2', '3', '4', '5', '6']],
+            isValidForSelectedBelt(value) {
+                const belt = this.actual_belt;
+                const degree = parseInt(value, 10);
+                const maxDegree = belt === 'black' ? 6 : 4;
+
+                if (!Number.isInteger(degree) || degree < 0 || degree > maxDegree) {
+                    throw new Error(
+                        belt === 'black'
+                            ? 'Faixa preta permite graus entre 0 e 6.'
+                            : 'A faixa selecionada permite graus entre 0 e 4.'
+                    );
+                }
+            }
         }
     },
     wagi_size: {

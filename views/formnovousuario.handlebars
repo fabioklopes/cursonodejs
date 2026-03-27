@@ -161,8 +161,9 @@
         </div>
 
         <div class="form-floating mb-3">
-            <input type="number" min="0" max="6" class="form-control" id="actual_degree" name="actual_degree" {{#if camposErro.actual_degree}}{{/if}}
-                value="{{usuario.actual_degree}}" placeholder="" required>
+            <select class="form-select" id="actual_degree" name="actual_degree" data-current-degree="{{usuario.actual_degree}}" {{#if camposErro.actual_degree}}{{/if}} aria-label="" required>
+                <option value="">-- Selecione --</option>
+            </select>
             <label for="actual_degree">Grau (se não tiver grau, coloque zero)</label>
             {{#if camposErro.actual_degree}}<div class="invalid-feedback" style="display:block;">{{camposErro.actual_degree}}</div>{{/if}}
         </div>
@@ -258,6 +259,8 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
+        const beltSelect = document.getElementById('actual_belt');
+        const degreeSelect = document.getElementById('actual_degree');
         const photoInput = document.getElementById('photo-input');
         const cropContainer = document.getElementById('crop-container');
         const cropperImage = document.getElementById('cropper-image');
@@ -269,6 +272,38 @@
         const cropCancelBtn = document.getElementById('crop-cancel');
 
         let cropper = null;
+
+        const getMaxDegreeForBelt = (beltValue) => beltValue === 'black' ? 6 : 4;
+
+        const rebuildDegreeOptions = () => {
+            if (!degreeSelect) {
+                return;
+            }
+
+            const beltValue = beltSelect ? beltSelect.value : '';
+            const maxDegree = getMaxDegreeForBelt(beltValue);
+            const preferredDegree = degreeSelect.value || degreeSelect.dataset.currentDegree || '0';
+            const parsedPreferred = parseInt(preferredDegree, 10);
+            const normalizedDegree = Number.isInteger(parsedPreferred)
+                ? Math.min(Math.max(parsedPreferred, 0), maxDegree)
+                : 0;
+
+            degreeSelect.innerHTML = '';
+            for (let degree = 0; degree <= maxDegree; degree++) {
+                const option = document.createElement('option');
+                option.value = String(degree);
+                option.textContent = degree === 0 ? '0 (Nenhum grau)' : String(degree);
+                degreeSelect.appendChild(option);
+            }
+
+            degreeSelect.value = String(normalizedDegree);
+            degreeSelect.dataset.currentDegree = String(normalizedDegree);
+        };
+
+        rebuildDegreeOptions();
+        if (beltSelect) {
+            beltSelect.addEventListener('change', rebuildDegreeOptions);
+        }
 
         photoInput.addEventListener('change', function (e) {
             const file = e.target.files[0];

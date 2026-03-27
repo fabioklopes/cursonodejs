@@ -12,7 +12,6 @@ const BELTS = [
     'green_white', 'green', 'green_black',
     'blue', 'purple', 'brown', 'black'
 ];
-const DEGREES = ['0', '1', '2', '3', '4', '5', '6'];
 const UNIFORM_SIZES = ['A0', 'A1', 'A2', 'A3', 'M0', 'M1', 'M2', 'M3', 'F0', 'F1'];
 const OBI_SIZES = ['P', 'M', 'G', 'GG'];
 const STATUSES = ['P', 'A', 'C'];
@@ -26,6 +25,11 @@ function randomPhone() {
     const ddd = String(Math.floor(Math.random() * 89) + 11);
     const number = String(Math.floor(Math.random() * 900000000) + 100000000);
     return ddd + number;
+}
+
+function randomDegreeForBelt(belt) {
+    const maxDegree = belt === 'black' ? 6 : 4;
+    return String(Math.floor(Math.random() * (maxDegree + 1)));
 }
 
 function randomBirthDate() {
@@ -45,6 +49,7 @@ async function createFakeUsers(quantity = 10) {
         const first_name = casual.first_name;
         const last_name = casual.last_name;
         const email = `${first_name.toLowerCase()}.${last_name.toLowerCase()}${i}@${casual.domain}`;
+        const actual_belt = randomFrom(BELTS);
 
         users.push({
             user_code:    generateCode(5),
@@ -55,8 +60,8 @@ async function createFakeUsers(quantity = 10) {
             role:         randomFrom(ROLES),
             phone:        randomPhone(),
             birth_date:   randomBirthDate(),
-            actual_belt:  randomFrom(BELTS),
-            actual_degree: randomFrom(DEGREES),
+            actual_belt,
+            actual_degree: randomDegreeForBelt(actual_belt),
             wagi_size:    randomFrom(UNIFORM_SIZES),
             zubon_size:   randomFrom(UNIFORM_SIZES),
             obi_size:     randomFrom(OBI_SIZES),
