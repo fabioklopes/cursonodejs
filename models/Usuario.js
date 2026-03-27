@@ -10,7 +10,6 @@ const Usuario = db.sequelize.define('tb_usuarios', {
     last_name: db.Sequelize.STRING,
     email: {
         type: db.Sequelize.STRING,
-        unique: true,
         allowNull: false,
         validate: {
             isEmail: true

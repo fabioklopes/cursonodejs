@@ -1,2 +1,1170 @@
-<h1 class="text-center">Página Presença</h1>
-<p class="text-center">Aqui você pode solicitar a presença para as aulas.</p>
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+</div>
+{{/if}}
+
+{{#if hasProfessorPrivileges}}
+<h1 class="mb-4">Pendências</h1>
+
+<style>
+    .presenca-pro-aluno {
+        cursor: pointer;
+    }
+
+    .presenca-pro-aluno:hover td {
+        background-color: var(--bs-primary-bg-subtle);
+    }
+
+    .presenca-pro-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid var(--bs-border-color-translucent);
+    }
+
+    .presenca-pro-avatar-lg {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 2px solid var(--bs-border-color-translucent);
+    }
+</style>
+
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Aluno</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#if presencas.length}}
+            {{#each presencas}}
+            <tr
+                class="presenca-pro-aluno"
+                data-presenca-id="{{id}}"
+                data-aluno-foto="{{aluno_photo}}"
+                data-aluno-nome="{{aluno_nome_completo}}"
+                data-data="{{request_date_formatted}}"
+                data-tipo="{{#if (eq class_type 'Gi')}}1ª aula{{else}}{{#if (eq class_type 'No-Gi')}}2ª aula{{else}}Integral{{/if}}{{/if}}"
+            >
+                <td data-label="Aluno">
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="{{aluno_photo}}" alt="Avatar de {{aluno_nome_completo}}" class="presenca-pro-avatar">
+                        <span>{{aluno_nome}}</span>
+                    </div>
+                </td>
+                
+            </tr>
+            {{/each}}
+        {{else}}
+            <tr>
+                <td colspan="2" class="text-center text-body-secondary py-4">Nenhuma solicitação pendente no momento.</td>
+            </tr>
+        {{/if}}
+    </tbody>
+</table>
+
+<div class="modal fade" id="modalDetalhePresencaPro" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalDetalhePresencaProLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDetalhePresencaProLabel">Detalhes da Solicitação</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <img id="proDetalheAvatar" src="/uploads/users/default.jpg" alt="Avatar do aluno" class="presenca-pro-avatar-lg">
+                    <br>
+                    <h4><span id="proDetalheNome">-</span></h4>
+                </div>
+                <div class="row g-2">
+                    <div class="col-12">
+                        <span class="fw-semibold text-body-secondary">Aula do dia:</span>
+                        <span id="proDetalheData">-</span>
+                    </div>
+                    
+                    <div class="col-12">
+                        <span class="fw-semibold text-body-secondary">Tipo de classe:</span>
+                        <span id="proDetalheTipo">-</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                <button type="button" id="proBtnNegar" class="btn btn-danger" data-presenca-id="" data-aluno="" data-data="">
+                    <i class="fa-solid fa-xmark"></i> Negar
+                </button>
+                <button type="button" id="proBtnAprovar" class="btn btn-success" data-presenca-id="">
+                    <i class="fa-solid fa-check"></i> Aprovar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="presenca-pagination-wrapper d-flex flex-column align-items-center gap-2 mb-4">
+    <small class="text-body-secondary">Total de registros: {{pagination.totalItems}}</small>
+    {{#if pagination.totalPages}}
+    <nav class="presenca-pagination-nav" aria-label="Paginação de presenças pendentes">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item {{#unless pagination.hasPrev}}disabled{{/unless}}">
+                <a class="page-link" href="/presenca?page={{pagination.prevPage}}" aria-label="Página anterior">Anterior</a>
+            </li>
+            {{#each pagination.pageNumbers}}
+                <li class="page-item {{#if isCurrent}}active{{/if}}">
+                    <a class="page-link" href="/presenca?page={{number}}">{{number}}</a>
+                </li>
+            {{/each}}
+            <li class="page-item {{#unless pagination.hasNext}}disabled{{/unless}}">
+                <a class="page-link" href="/presenca?page={{pagination.nextPage}}" aria-label="Próxima página">Próxima</a>
+            </li>
+        </ul>
+    </nav>
+    {{/if}}
+</div>
+
+<div class="modal fade" id="modalNegarPresenca" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalNegarPresencaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form id="formNegarPresenca">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalNegarPresencaLabel">Negar Solicitação</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-body-secondary mb-2" id="negarResumo"></p>
+                    <label for="negarObservacao" class="form-label">Observação</label>
+                    <textarea
+                        class="form-control"
+                        id="negarObservacao"
+                        name="observation"
+                        rows="4"
+                        maxlength="255"
+                        required
+                        placeholder="Informe o motivo da negação"
+                    ></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="submit" class="btn btn-danger">Confirmar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+        /* ── elementos ── */
+        const detalheModalEl = document.getElementById('modalDetalhePresencaPro');
+        const negarModalEl   = document.getElementById('modalNegarPresenca');
+        if (!detalheModalEl || !negarModalEl) return;
+
+        const detalheAvatar  = document.getElementById('proDetalheAvatar');
+        const detalheData    = document.getElementById('proDetalheData');
+        const detalheNome    = document.getElementById('proDetalheNome');
+        const detalheTipo    = document.getElementById('proDetalheTipo');
+        const proBtnAprovar  = document.getElementById('proBtnAprovar');
+        const proBtnNegar    = document.getElementById('proBtnNegar');
+
+        const form           = document.getElementById('formNegarPresenca');
+        const resumo         = document.getElementById('negarResumo');
+        const observacao     = document.getElementById('negarObservacao');
+
+        /* ── helper: mostra alerta acima da tabela ── */
+        function showAlert(msg, tipo) {
+            let alertEl = document.getElementById('presencaProAlert');
+            if (!alertEl) {
+                alertEl = document.createElement('div');
+                alertEl.id = 'presencaProAlert';
+                alertEl.className = 'alert alert-autodismiss';
+                alertEl.setAttribute('role', 'alert');
+                const h1 = document.querySelector('h1.mb-4');
+                if (h1) h1.insertAdjacentElement('afterend', alertEl);
+                else document.body.prepend(alertEl);
+            }
+            const icon = tipo === 'primary'
+                ? '<i class="fa-solid fa-circle-check"></i>'
+                : '<i class="fa-solid fa-circle-xmark"></i>';
+            alertEl.className = `alert alert-${tipo} alert-autodismiss`;
+            alertEl.innerHTML = `${icon} ${msg}`;
+            // acionar auto-dismiss se disponível
+            if (window.bootstrap && bootstrap.Alert) {
+                // re-inicializa
+            }
+        }
+
+        /* ── abrir modal de detalhe ao clicar na linha ── */
+        document.querySelectorAll('.presenca-pro-aluno').forEach((row) => {
+            row.addEventListener('click', () => {
+                if (!window.bootstrap) return;
+
+                const id   = row.getAttribute('data-presenca-id');
+                const nome = row.getAttribute('data-aluno-nome') || '-';
+                const foto = row.getAttribute('data-aluno-foto') || '/uploads/users/default.jpg';
+                const data = row.getAttribute('data-data') || '-';
+                const tipo = row.getAttribute('data-tipo') || '-';
+
+                detalheAvatar.src = foto;
+                detalheAvatar.alt = `Avatar de ${nome}`;
+                detalheData.textContent = data;
+                detalheNome.textContent = nome;
+                detalheTipo.textContent = tipo;
+
+                // passa dados para os botões de ação
+                proBtnAprovar.dataset.presencaId = id;
+                proBtnNegar.dataset.presencaId   = id;
+                proBtnNegar.dataset.aluno        = nome;
+                proBtnNegar.dataset.data         = data;
+
+                bootstrap.Modal.getOrCreateInstance(detalheModalEl).show();
+            });
+        });
+
+        /* ── Aprovar (AJAX) ── */
+        proBtnAprovar.addEventListener('click', async () => {
+            const id = proBtnAprovar.dataset.presencaId;
+            if (!id) return;
+            proBtnAprovar.disabled = true;
+            try {
+                const res  = await fetch(`/presenca/status/${id}/aprovar`, { method: 'POST' });
+                const data = await res.json();
+                bootstrap.Modal.getOrCreateInstance(detalheModalEl).hide();
+                showAlert(data.mensagem || (data.ok ? 'Aprovado.' : 'Erro.'), data.ok ? 'primary' : 'danger');
+                if (data.ok) setTimeout(() => window.location.reload(), 800);
+            } catch (e) {
+                showAlert('Erro de comunicação: ' + e.message, 'danger');
+            } finally {
+                proBtnAprovar.disabled = false;
+            }
+        });
+
+        /* ── Botão Negar: fecha detalhe e abre modal de negação ── */
+        proBtnNegar.addEventListener('click', () => {
+            const id    = proBtnNegar.dataset.presencaId;
+            const aluno = proBtnNegar.dataset.aluno || '-';
+            const data  = proBtnNegar.dataset.data  || '-';
+
+            // pre-popula modal de negação
+            form.dataset.presencaId = id;
+            resumo.textContent = `Aluno: ${aluno} | Data: ${data}`;
+            observacao.value = '';
+
+            const bsDetalhe = bootstrap.Modal.getOrCreateInstance(detalheModalEl);
+            const bsNegar   = bootstrap.Modal.getOrCreateInstance(negarModalEl);
+
+            // quando o detalhe fechar, abre o negar
+            detalheModalEl.addEventListener('hidden.bs.modal', function onHidden() {
+                detalheModalEl.removeEventListener('hidden.bs.modal', onHidden);
+                bsNegar.show();
+            });
+            bsDetalhe.hide();
+        });
+
+        /* ── Submit negar (AJAX) ── */
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = form.dataset.presencaId;
+            const obs = observacao.value.trim();
+            if (!obs) { observacao.focus(); return; }
+
+            const submitBtn = form.querySelector('[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+
+            try {
+                const res  = await fetch(`/presenca/status/${id}/negar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `observation=${encodeURIComponent(obs)}`
+                });
+                const data = await res.json();
+                bootstrap.Modal.getOrCreateInstance(negarModalEl).hide();
+                showAlert(data.mensagem || (data.ok ? 'Negado.' : 'Erro.'), data.ok ? 'danger' : 'danger');
+                if (data.ok) setTimeout(() => window.location.reload(), 800);
+            } catch (err) {
+                showAlert('Erro de comunicação: ' + err.message, 'danger');
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
+    });
+})();
+</script>
+{{else}}
+<script id="presencasData" type="application/json">{{{todasPresencasJSON}}}</script>
+
+<style>
+    /* ── Pagination (same as aluno) ── */
+    .presenca-pagination-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 100%;
+    }
+    .presenca-pagination-nav {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        overflow-x: hidden;
+    }
+    .presenca-pagination-nav .pagination {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-bottom: 0;
+    }
+    @media (max-width: 768px) {
+        .presenca-pagination-nav .page-link {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.85rem;
+        }
+    }
+
+    /* ── Calendar ── */
+    .cal-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 3px;
+    }
+    .cal-header-cell {
+        text-align: center;
+        font-weight: 700;
+        font-size: 0.72rem;
+        padding: 4px 2px;
+        color: var(--bs-secondary-color);
+    }
+    .cal-day-cell {
+        position: relative;
+        min-height: 52px;
+        border: 1px solid var(--bs-border-color-translucent);
+        border-radius: 6px;
+        padding: 3px 4px;
+        background: var(--bs-body-bg);
+    }
+    .cal-day-cell.empty {
+        border: none;
+        background: transparent;
+        min-height: 0;
+    }
+    .cal-day-cell.disabled {
+        background: var(--bs-tertiary-bg);
+        color: var(--bs-secondary-color);
+        cursor: not-allowed;
+    }
+    .cal-day-cell.selectable {
+        cursor: pointer;
+    }
+    .cal-day-cell.selectable:hover {
+        border-color: var(--bs-primary);
+        background: var(--bs-primary-bg-subtle);
+    }
+    .cal-day-cell.has-presenca {
+        cursor: pointer;
+        background: #fff9e6;
+        border-color: #ffc107;
+    }
+    .cal-day-cell.has-presenca:hover {
+        background: #fff3cd;
+    }
+    .cal-day-cell.selected {
+        background: var(--bs-primary-bg-subtle);
+        border-color: var(--bs-primary);
+        border-width: 2px;
+    }
+    .cal-day-cell.today-mark {
+        outline: 2px solid var(--bs-primary);
+        outline-offset: -2px;
+    }
+    .cal-day-number {
+        font-weight: 700;
+        font-size: 0.8rem;
+        line-height: 1;
+        display: block;
+    }
+    .cal-center-icon {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 0.95rem;
+        pointer-events: none;
+    }
+    .cal-center-icon.info-icon   { color: #ffc107; margin-top: 4px; }
+    .cal-center-icon.check-icon  { color: var(--bs-primary); margin-top: 4px; }
+
+    /* ── Modal list (inside calendar modal) ── */
+    .modal-presenca-list {
+        max-height: 220px;
+        overflow-y: auto;
+        scrollbar-width: thin;
+    }
+
+    /* ── detail modal full-screen on mobile ── */
+    @media (max-width: 575.98px) {
+        #modalDetalheCal .modal-dialog {
+            margin: 0;
+            max-width: 100%;
+            height: 100%;
+        }
+        #modalDetalheCal .modal-content {
+            height: 100%;
+            border-radius: 0;
+        }
+    }
+
+    /* ── Table clickable rows ── */
+    .presenca-row { cursor: pointer; }
+    .presenca-row:hover td { background-color: var(--bs-primary-bg-subtle); }
+
+    /* ── Selected dates list ── */
+    .selected-date-item .tuesday-selector {
+        max-width: 200px;
+    }
+</style>
+
+<!-- ══════════════════════════════════════════════════
+     CABEÇALHO DA PÁGINA
+════════════════════════════════════════════════════ -->
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1 class="mb-0">Presenças</h1>
+    <button type="button" class="btn btn-primary" id="btnNovaPresenca">
+        <i class="fa-solid fa-plus"></i> Nova Solicitação
+    </button>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TABELA DE PRESENÇAS (paginada)
+════════════════════════════════════════════════════ -->
+<table class="table table-striped align-middle">
+    <thead>
+        <tr>
+            <th>Data</th>
+            <th>Status</th>
+            <th>Observação</th>
+        </tr>
+    </thead>
+    <tbody>
+        {{#if presencas.length}}
+            {{#each presencas}}
+            <tr class="presenca-row"
+                data-id="{{id}}"
+                data-request-date="{{request_date_formatted}}"
+                data-request-ts="{{request_date_ts}}"
+                data-status="{{status}}"
+                data-status-label="{{status_label}}"
+                data-status-class="{{status_class}}"
+                data-class-type="{{class_type}}"
+                data-class-type-display="{{class_type_display}}"
+                data-observation="{{observation}}">
+                <td data-label="Data">{{request_date_formatted}}</td>
+                <td data-label="Status"><span class="{{status_class}} fw-semibold">{{status_label}}</span></td>
+                <td data-label="Observação">{{#if observation}}{{observation}}{{else}}<span class="text-body-secondary">—</span>{{/if}}</td>
+            </tr>
+            {{/each}}
+        {{else}}
+            <tr>
+                <td colspan="3" class="text-center text-body-secondary py-4">
+                    Nenhuma solicitação encontrada.
+                </td>
+            </tr>
+        {{/if}}
+    </tbody>
+</table>
+
+<div class="presenca-pagination-wrapper d-flex flex-column align-items-center gap-2 mb-4">
+    <small class="text-body-secondary">Total de registros: {{pagination.totalItems}}</small>
+    {{#if pagination.totalPages}}
+    <nav class="presenca-pagination-nav" aria-label="Paginação de presenças">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item {{#unless pagination.hasPrev}}disabled{{/unless}}">
+                <a class="page-link" href="/presenca?page={{pagination.prevPage}}" aria-label="Página anterior">Anterior</a>
+            </li>
+            {{#each pagination.pageNumbers}}
+                <li class="page-item {{#if isCurrent}}active{{/if}}">
+                    <a class="page-link" href="/presenca?page={{number}}">{{number}}</a>
+                </li>
+            {{/each}}
+            <li class="page-item {{#unless pagination.hasNext}}disabled{{/unless}}">
+                <a class="page-link" href="/presenca?page={{pagination.nextPage}}" aria-label="Próxima página">Próxima</a>
+            </li>
+        </ul>
+    </nav>
+    {{/if}}
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: DETALHE (aberto da tabela)
+════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalDetalheTabela" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalDetalheTabelaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDetalheTabelaLabel">
+                    Detalhes da Solicitação:
+                    <span id="dtStatus" class="fw-bold"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dtDetalheConteudo"></div>
+            </div>
+            <div class="modal-footer d-flex justify-content-end gap-2">
+                <button type="button" id="dtBtnCancelar" class="btn btn-danger d-none" data-id="">
+                    <i class="fa-solid fa-ban"></i> Cancelar Solicitação
+                </button>
+                <button type="button" id="dtBtnReSolicitar" class="btn btn-primary d-none" data-date="">
+                    <i class="fa-solid fa-rotate-right"></i> Solicitar Novamente
+                </button>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: NOVA SOLICITAÇÃO (calendário + lista)
+════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalNovaPresenca" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalNovaPresencaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalNovaPresencaLabel">
+                    <i class="fa-solid fa-calendar-plus"></i> Nova Solicitação de Presença
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Navegação do mês -->
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <button id="calPrevMonth" class="btn btn-sm btn-outline-secondary">
+                        <i class="fa-solid fa-chevron-left"></i>
+                    </button>
+                    <span id="calMonthLabel" class="fw-semibold text-capitalize fs-6"></span>
+                    <button id="calNextMonth" class="btn btn-sm btn-outline-secondary">
+                        <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                </div>
+
+                <!-- Grid do calendário -->
+                <div id="calGrid" class="cal-grid mb-1">
+                    <!-- Headers dos dias da semana -->
+                    <div class="cal-header-cell"><span class="d-none d-md-inline">DOM</span><span class="d-md-none">D</span></div>
+                    <div class="cal-header-cell"><span class="d-none d-md-inline">SEG</span><span class="d-md-none">S</span></div>
+                    <div class="cal-header-cell"><span class="d-none d-md-inline">TER</span><span class="d-md-none">T</span></div>
+                    <div class="cal-header-cell"><span class="d-none d-md-inline">QUA</span><span class="d-md-none">Q</span></div>
+                    <div class="cal-header-cell"><span class="d-none d-md-inline">QUI</span><span class="d-md-none">Q</span></div>
+                    <div class="cal-header-cell"><span class="d-none d-md-inline">SEX</span><span class="d-md-none">S</span></div>
+                    <div class="cal-header-cell"><span class="d-none d-md-inline">SÁB</span><span class="d-md-none">S</span></div>
+                    <!-- Cells serão geradas pelo JS -->
+                </div>
+
+                <!-- Lista de datas selecionadas -->
+                <div id="selectedContainer" style="display:none;" class="mt-3">
+                    <p class="fw-semibold mb-2 small">Datas pré-selecionadas:</p>
+                    <ul id="selectedList" class="list-group list-group-flush mb-3"></ul>
+                    <div class="text-end">
+                        <button id="btnSolicitar" class="btn btn-primary btn-sm">
+                            <i class="fa-solid fa-paper-plane"></i> Solicitar Presença(s)
+                        </button>
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                <!-- Lista paginada de presenças dentro do modal -->
+                <p class="fw-semibold mb-2 small text-body-secondary">Histórico de solicitações:</p>
+                <div class="modal-presenca-list">
+                    <table class="table table-sm table-striped align-middle mb-0" id="calListaTable">
+                        <thead class="table-light">
+                            <tr><th>Data</th><th>Status</th><th>Observação</th></tr>
+                        </thead>
+                        <tbody id="calListaTbody"></tbody>
+                    </table>
+                </div>
+                <div id="calListaPagination" class="presenca-pagination-wrapper d-flex flex-column align-items-center gap-1 mt-2">
+                    <small id="calListaTotal" class="text-body-secondary"></small>
+                    <nav class="presenca-pagination-nav" aria-label="Paginação modal">
+                        <ul id="calListaPaginationUl" class="pagination pagination-sm mb-0"></ul>
+                    </nav>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     MODAL: DETALHE (aberto do calendário — fullscreen mobile)
+════════════════════════════════════════════════════ -->
+<div class="modal fade" id="modalDetalheCal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalDetalheCalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalDetalheCalLabel">
+                    Detalhes da Solicitação:
+                    <span id="dcStatus" class="fw-bold"></span>
+                </h5>
+            </div>
+            <div class="modal-body">
+                <div id="dcDetalheConteudo"></div>
+            </div>
+            <div class="modal-footer d-flex justify-content-end gap-2">
+                <button type="button" id="dcBtnCancelar" class="btn btn-danger d-none" data-id="">
+                    <i class="fa-solid fa-ban"></i> Cancelar Solicitação
+                </button>
+                <button type="button" id="dcBtnReSolicitar" class="btn btn-primary d-none" data-date="">
+                    <i class="fa-solid fa-rotate-right"></i> Solicitar Novamente
+                </button>
+                <button type="button" id="dcBtnFechar" class="btn btn-outline-secondary">
+                    <i class="fa-solid fa-arrow-left"></i> Fechar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════ -->
+<script>
+(function () {
+    'use strict';
+
+    /* ── Dados do servidor ── */
+    const rawData = JSON.parse(document.getElementById('presencasData').textContent || '[]');
+
+    // Estrutura de acesso rápido: date_iso → presença
+    let presencasByDate = {};
+    let presencasById   = {};
+    rawData.forEach(p => {
+        presencasByDate[p.request_date_iso] = p;
+        presencasById[p.id] = p;
+    });
+
+    // Lista local (sincronizada após criar/cancelar)
+    let allPresencas = [...rawData];
+
+    /* ── Estado do calendário ── */
+    const now = new Date();
+    let calYear  = now.getFullYear();
+    let calMonth = now.getMonth(); // 0-based
+
+    /* ── Datas selecionadas: Map<isoStr, classType> ── */
+    const selectedDates = new Map();
+
+    /* ── Paginação do modal ── */
+    const CAL_PAGE_SIZE = 10;
+    let calPage = 1;
+    let shouldRefreshOnCalendarClose = false;
+    let isSwitchingFromCalendarToDetail = false;
+
+    /* ── Referências DOM ── */
+    const calGrid          = document.getElementById('calGrid');
+    const calMonthLabel    = document.getElementById('calMonthLabel');
+    const calPrevBtn       = document.getElementById('calPrevMonth');
+    const calNextBtn       = document.getElementById('calNextMonth');
+    const selectedContainer = document.getElementById('selectedContainer');
+    const selectedList     = document.getElementById('selectedList');
+    const btnSolicitar     = document.getElementById('btnSolicitar');
+    const calListaTbody    = document.getElementById('calListaTbody');
+    const calListaTotal    = document.getElementById('calListaTotal');
+    const calListaPagUl    = document.getElementById('calListaPaginationUl');
+
+    /* ── Helpers ── */
+    function toIso(y, m, d) {
+        return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+    function todayIso() {
+        return toIso(now.getFullYear(), now.getMonth(), now.getDate());
+    }
+    function limitIso() {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 15);
+        return toIso(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    function hasActivePresence(iso) {
+        return allPresencas.some((p) => p.request_date_iso === iso && p.status !== 'C');
+    }
+    function isSelectable(iso) {
+        return iso >= limitIso() && iso <= todayIso() && !hasActivePresence(iso) && !selectedDates.has(iso);
+    }
+    function isTuesday(iso) {
+        const d = new Date(iso + 'T00:00:00');
+        return d.getDay() === 2;
+    }
+    function ptShortDate(iso) {
+        const [y, m, d] = iso.split('-');
+        return `${d}/${m}/${y}`;
+    }
+    function ptDayName(iso) {
+        const names = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+        return names[new Date(iso + 'T00:00:00').getDay()];
+    }
+    function statusBadge(status, label) {
+        const cls = { P:'text-warning', A:'text-success', N:'text-danger', C:'text-secondary' }[status] || '';
+        return `<span class="${cls} fw-semibold">${label}</span>`;
+    }
+    function buildDetalheHtml(p) {
+        return `
+        <div class="row g-2">
+            <div class="col-12"><span class="fw-semibold text-body-secondary">Data da Solicitação:</span> ${p.request_date_ts}</div>
+            <div class="col-12"><span class="fw-semibold text-body-secondary">Data da Aula:</span> ${p.request_date_formatted}</div>
+            <div class="col-12"><span class="fw-semibold text-body-secondary">Status:</span> ${statusBadge(p.status, p.status_label)}</div>
+            <div class="col-12"><span class="fw-semibold text-body-secondary">Tipo:</span> ${p.class_type_display || p.class_type}</div>
+            <div class="col-12"><span class="fw-semibold text-body-secondary">Observação:</span> ${p.observation ? escHtml(p.observation) : '<span class="text-body-secondary"></span>'}</div>
+        </div>`;
+    }
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function syncIndexes() {
+        presencasByDate = {};
+        presencasById   = {};
+        allPresencas.forEach(p => {
+            const current = presencasByDate[p.request_date_iso];
+            if (!current || Number(p.id) > Number(current.id)) {
+                presencasByDate[p.request_date_iso] = p;
+            }
+            presencasById[p.id] = p;
+        });
+    }
+
+    /* ════════════════════════════════
+       CALENDÁRIO
+    ════════════════════════════════ */
+    function renderCalendar() {
+        // Rótulo do mês
+        const label = new Date(calYear, calMonth, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        calMonthLabel.textContent = label.charAt(0).toUpperCase() + label.slice(1);
+
+        // Controle de navegação
+        const curY = now.getFullYear(), curM = now.getMonth();
+        calNextBtn.disabled = (calYear > curY) || (calYear === curY && calMonth >= curM);
+        calPrevBtn.disabled = false;
+
+        // Remover células antigas (manter os 7 headers)
+        const cells = calGrid.querySelectorAll('.cal-day-cell');
+        cells.forEach(c => c.remove());
+
+        const firstDay = new Date(calYear, calMonth, 1).getDay(); // 0=Dom
+        const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+        // Células vazias do início
+        for (let i = 0; i < firstDay; i++) {
+            const empty = document.createElement('div');
+            empty.className = 'cal-day-cell empty';
+            calGrid.appendChild(empty);
+        }
+
+        const td = todayIso();
+        const ld = limitIso();
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const iso = toIso(calYear, calMonth, d);
+            const cell = document.createElement('div');
+            cell.className = 'cal-day-cell';
+            cell.dataset.iso = iso;
+
+            // Número do dia (negrito, canto sup esq)
+            const dayNum = document.createElement('span');
+            dayNum.className = 'cal-day-number';
+            dayNum.textContent = d;
+            cell.appendChild(dayNum);
+
+            if (iso === td) cell.classList.add('today-mark');
+
+            const hasPres = !!presencasByDate[iso];
+            const hasActivePres = hasActivePresence(iso);
+            const isSel   = selectedDates.has(iso);
+            const inRange = iso >= ld && iso <= td;
+
+            if (hasPres) {
+                cell.classList.add('has-presenca');
+                const icon = document.createElement('i');
+                icon.className = 'fa-solid fa-circle-info cal-center-icon info-icon';
+                cell.appendChild(icon);
+                if (hasActivePres) {
+                    cell.addEventListener('click', () => openFromCal(presencasByDate[iso].id));
+                } else {
+                    cell.addEventListener('click', () => addSelectedDate(iso));
+                }
+            } else if (isSel) {
+                cell.classList.add('selected');
+                const icon = document.createElement('i');
+                icon.className = 'fa-solid fa-check cal-center-icon check-icon';
+                cell.appendChild(icon);
+                cell.addEventListener('click', () => removeSelectedDate(iso));
+            } else if (inRange) {
+                cell.classList.add('selectable');
+                cell.addEventListener('click', () => addSelectedDate(iso));
+            } else {
+                cell.classList.add('disabled');
+            }
+
+            calGrid.appendChild(cell);
+        }
+    }
+
+    /* ════════════════════════════════
+       DATAS SELECIONADAS
+    ════════════════════════════════ */
+    function addSelectedDate(iso) {
+        if (selectedDates.has(iso) || hasActivePresence(iso)) return;
+        selectedDates.set(iso, isTuesday(iso) ? 'Integral' : 'Integral');
+        renderSelectedList();
+        renderCalendar();
+    }
+    function removeSelectedDate(iso) {
+        selectedDates.delete(iso);
+        renderSelectedList();
+        renderCalendar();
+    }
+    function renderSelectedList() {
+        selectedList.innerHTML = '';
+        if (selectedDates.size === 0) {
+            selectedContainer.style.display = 'none';
+            return;
+        }
+        selectedContainer.style.display = '';
+        const sorted = [...selectedDates.keys()].sort();
+        sorted.forEach(iso => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item selected-date-item d-flex justify-content-between align-items-center gap-2 py-2';
+            li.dataset.iso = iso;
+
+            const info = document.createElement('div');
+            info.className = 'flex-grow-1';
+            const dateLabel = document.createElement('div');
+            dateLabel.className = 'small fw-semibold';
+            dateLabel.textContent = `${ptShortDate(iso)} — ${ptDayName(iso)}`;
+            info.appendChild(dateLabel);
+
+            if (isTuesday(iso)) {
+                const sel = document.createElement('select');
+                sel.className = 'form-select form-select-sm tuesday-selector mt-1';
+                sel.dataset.iso = iso;
+                [['Integral','Integral (ambas as aulas)'],['Gi','Gi (1ª Aula)'],['No-Gi','No-Gi (2ª Aula)']].forEach(([v,l]) => {
+                    const opt = document.createElement('option');
+                    opt.value = v; opt.textContent = l;
+                    if (selectedDates.get(iso) === v) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+                sel.addEventListener('change', e => selectedDates.set(iso, e.target.value));
+                info.appendChild(sel);
+            }
+
+            const btnRem = document.createElement('button');
+            btnRem.type = 'button';
+            btnRem.className = 'btn btn-sm btn-outline-danger flex-shrink-0';
+            btnRem.innerHTML = '<i class="fa-solid fa-trash-can"></i> Remover';
+            btnRem.addEventListener('click', () => removeSelectedDate(iso));
+
+            li.appendChild(info);
+            li.appendChild(btnRem);
+            selectedList.appendChild(li);
+        });
+    }
+
+    /* ════════════════════════════════
+       LISTA PAGINADA DO MODAL
+    ════════════════════════════════ */
+    function renderCalLista() {
+        // Ordena por data desc
+        const sorted = [...allPresencas].sort((a, b) => b.request_date_iso.localeCompare(a.request_date_iso));
+        const total  = sorted.length;
+        const totalPages = Math.max(1, Math.ceil(total / CAL_PAGE_SIZE));
+        calPage = Math.min(calPage, totalPages);
+
+        const start = (calPage - 1) * CAL_PAGE_SIZE;
+        const page  = sorted.slice(start, start + CAL_PAGE_SIZE);
+
+        calListaTotal.textContent = `Total de registros: ${total}`;
+        calListaTbody.innerHTML = '';
+
+        if (page.length === 0) {
+            calListaTbody.innerHTML = `<tr><td colspan="3" class="text-center text-body-secondary py-3">Nenhum registro.</td></tr>`;
+        } else {
+            page.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.style.cursor = 'pointer';
+                tr.innerHTML = `
+                    <td>${p.request_date_formatted}</td>
+                    <td><span class="${p.status_class} fw-semibold">${p.status_label}</span></td>
+                    <td>${p.observation ? escHtml(p.observation) : '<span class="text-body-secondary">—</span>'}</td>`;
+                tr.addEventListener('click', () => openFromCal(p.id));
+                calListaTbody.appendChild(tr);
+            });
+        }
+
+        // Paginação
+        calListaPagUl.innerHTML = '';
+        const addPageItem = (label, page, disabled, active) => {
+            const li = document.createElement('li');
+            li.className = `page-item${disabled?' disabled':''}${active?' active':''}`;
+            const a = document.createElement('a');
+            a.className = 'page-link'; a.href = '#'; a.textContent = label;
+            if (!disabled) a.addEventListener('click', e => { e.preventDefault(); calPage = page; renderCalLista(); });
+            li.appendChild(a);
+            calListaPagUl.appendChild(li);
+        };
+        addPageItem('Anterior', calPage - 1, calPage <= 1, false);
+        for (let i = 1; i <= totalPages; i++) addPageItem(i, i, false, i === calPage);
+        addPageItem('Próxima', calPage + 1, calPage >= totalPages, false);
+    }
+
+    /* ════════════════════════════════
+       ABRIR DETALHE (da tabela)
+    ════════════════════════════════ */
+    function openFromTable(id) {
+        const p = presencasById[id];
+        if (!p) return;
+        document.getElementById('dtStatus').textContent = p.status_label;
+        document.getElementById('dtStatus').className = 'fw-bold ' + p.status_class;
+        document.getElementById('dtDetalheConteudo').innerHTML = buildDetalheHtml(p);
+        const btn = document.getElementById('dtBtnCancelar');
+        const btnRe = document.getElementById('dtBtnReSolicitar');
+        if (p.status === 'P') {
+            btn.classList.remove('d-none');
+            btn.dataset.id = id;
+            btnRe.classList.add('d-none');
+        } else {
+            btn.classList.add('d-none');
+            if (p.status === 'C') {
+                btnRe.classList.remove('d-none');
+                btnRe.dataset.date = p.request_date_iso;
+            } else {
+                btnRe.classList.add('d-none');
+            }
+        }
+        new bootstrap.Modal(document.getElementById('modalDetalheTabela')).show();
+    }
+
+    /* ════════════════════════════════
+       ABRIR DETALHE (do calendário)
+    ════════════════════════════════ */
+    function openFromCal(id) {
+        const p = presencasById[id];
+        if (!p) return;
+        document.getElementById('dcStatus').textContent = p.status_label;
+        document.getElementById('dcStatus').className = 'fw-bold ' + p.status_class;
+        document.getElementById('dcDetalheConteudo').innerHTML = buildDetalheHtml(p);
+        const btn = document.getElementById('dcBtnCancelar');
+        const btnRe = document.getElementById('dcBtnReSolicitar');
+        if (p.status === 'P') {
+            btn.classList.remove('d-none');
+            btn.dataset.id = id;
+            btnRe.classList.add('d-none');
+        } else {
+            btn.classList.add('d-none');
+            if (p.status === 'C') {
+                btnRe.classList.remove('d-none');
+                btnRe.dataset.date = p.request_date_iso;
+            } else {
+                btnRe.classList.add('d-none');
+            }
+        }
+
+        // Esconde modal principal e mostra detalhe
+        const mainBs = bootstrap.Modal.getInstance(document.getElementById('modalNovaPresenca'));
+        if (mainBs) {
+            isSwitchingFromCalendarToDetail = true;
+            mainBs.hide();
+        }
+        new bootstrap.Modal(document.getElementById('modalDetalheCal')).show();
+    }
+
+    /* ── Fechar detalhe do calendário → voltar ao modal principal ── */
+    document.getElementById('dcBtnFechar').addEventListener('click', () => {
+        const detBs = bootstrap.Modal.getInstance(document.getElementById('modalDetalheCal'));
+        if (detBs) detBs.hide();
+    });
+    document.getElementById('modalDetalheCal').addEventListener('hidden.bs.modal', () => {
+        new bootstrap.Modal(document.getElementById('modalNovaPresenca')).show();
+    });
+
+    /* ════════════════════════════════
+       CANCELAR (da tabela)
+    ════════════════════════════════ */
+    document.getElementById('dtBtnCancelar').addEventListener('click', async function () {
+        const id = this.dataset.id;
+        await cancelarPresenca(id, () => {
+            const bsModal = bootstrap.Modal.getInstance(document.getElementById('modalDetalheTabela'));
+            if (bsModal) bsModal.hide();
+            window.location.reload();
+        });
+    });
+
+    document.getElementById('dtBtnReSolicitar').addEventListener('click', function () {
+        const iso = this.dataset.date;
+        if (!iso) return;
+        addSelectedDate(iso);
+        const bsModal = bootstrap.Modal.getInstance(document.getElementById('modalDetalheTabela'));
+        if (bsModal) bsModal.hide();
+        calPage = 1;
+        renderCalendar();
+        renderCalLista();
+        new bootstrap.Modal(document.getElementById('modalNovaPresenca')).show();
+    });
+
+    /* ════════════════════════════════
+       CANCELAR (do calendário)
+    ════════════════════════════════ */
+    document.getElementById('dcBtnCancelar').addEventListener('click', async function () {
+        const id = this.dataset.id;
+        await cancelarPresenca(id, (updatedP) => {
+            const bsModal = bootstrap.Modal.getInstance(document.getElementById('modalDetalheCal'));
+            if (bsModal) bsModal.hide();
+            // Atualiza estado local
+            const idx = allPresencas.findIndex(x => String(x.id) === String(id));
+            if (idx >= 0) {
+                allPresencas[idx].status = 'C';
+                allPresencas[idx].status_label = 'Cancelada';
+                allPresencas[idx].status_class = 'text-secondary';
+            }
+            shouldRefreshOnCalendarClose = true;
+            syncIndexes();
+            renderCalendar();
+            renderCalLista();
+        });
+    });
+
+    document.getElementById('dcBtnReSolicitar').addEventListener('click', function () {
+        const iso = this.dataset.date;
+        if (!iso) return;
+        addSelectedDate(iso);
+        const bsModal = bootstrap.Modal.getInstance(document.getElementById('modalDetalheCal'));
+        if (bsModal) bsModal.hide();
+    });
+
+    async function cancelarPresenca(id, onSuccess) {
+        if (!confirm('Deseja cancelar esta solicitação de presença?')) return;
+        try {
+            const res = await fetch(`/presenca/cancelar/${id}`, { method: 'POST' });
+            const data = await res.json();
+            if (data.ok) {
+                onSuccess(data);
+            } else {
+                alert(data.mensagem || 'Erro ao cancelar.');
+            }
+        } catch (e) {
+            alert('Erro de comunicação: ' + e.message);
+        }
+    }
+
+    /* ════════════════════════════════
+       SOLICITAR PRESENÇAS
+    ════════════════════════════════ */
+    btnSolicitar.addEventListener('click', async () => {
+        if (selectedDates.size === 0) return;
+        btnSolicitar.disabled = true;
+
+        const dates = [...selectedDates.keys()];
+        const classTypes = {};
+        dates.forEach(iso => { classTypes[iso] = selectedDates.get(iso); });
+
+        try {
+            const res = await fetch('/presenca/solicitar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ dates, classTypes })
+            });
+            const data = await res.json();
+
+            if (!data.ok) {
+                alert(data.mensagem || 'Erro ao solicitar presenças.');
+                btnSolicitar.disabled = false;
+                return;
+            }
+
+            // Adiciona novas presenças ao estado local
+            if (data.results && data.results.length > 0) {
+                data.results.forEach(p => {
+                    allPresencas.push(p);
+                    selectedDates.delete(p.request_date_iso);
+                });
+                shouldRefreshOnCalendarClose = true;
+                syncIndexes();
+            }
+
+            // Erros parciais
+            if (data.errors && data.errors.length > 0) {
+                const msgs = data.errors.map(e => `${ptShortDate(e.date)}: ${e.error}`).join('\n');
+                alert(`Algumas datas não foram processadas:\n${msgs}`);
+            } else if (data.results && data.results.length > 0) {
+                // Sucesso total: feedback visual
+            }
+
+            renderSelectedList();
+            renderCalendar();
+            renderCalLista();
+        } catch (e) {
+            alert('Erro de comunicação: ' + e.message);
+        }
+        btnSolicitar.disabled = false;
+    });
+
+    /* ════════════════════════════════
+       NAVEGAÇÃO DO MÊS
+    ════════════════════════════════ */
+    calPrevBtn.addEventListener('click', () => {
+        calMonth--;
+        if (calMonth < 0) { calMonth = 11; calYear--; }
+        renderCalendar();
+    });
+    calNextBtn.addEventListener('click', () => {
+        if ((calYear === now.getFullYear() && calMonth >= now.getMonth()) || calYear > now.getFullYear()) return;
+        calMonth++;
+        if (calMonth > 11) { calMonth = 0; calYear++; }
+        renderCalendar();
+    });
+
+    /* ════════════════════════════════
+       CLIQUES NA TABELA PRINCIPAL
+    ════════════════════════════════ */
+    document.querySelectorAll('.presenca-row').forEach(tr => {
+        tr.addEventListener('click', () => openFromTable(tr.dataset.id));
+    });
+
+    /* ════════════════════════════════
+       BOTÃO NOVA SOLICITAÇÃO
+    ════════════════════════════════ */
+    document.getElementById('btnNovaPresenca').addEventListener('click', () => {
+        // Reinicia página da lista modal
+        calPage = 1;
+        renderCalendar();
+        renderCalLista();
+        new bootstrap.Modal(document.getElementById('modalNovaPresenca')).show();
+    });
+
+    /* Init: renderiza lista modal se modal já estiver aberto (opcional) */
+    document.getElementById('modalNovaPresenca').addEventListener('show.bs.modal', () => {
+        renderCalendar();
+        renderCalLista();
+    });
+
+    document.getElementById('modalNovaPresenca').addEventListener('hidden.bs.modal', () => {
+        if (isSwitchingFromCalendarToDetail) {
+            isSwitchingFromCalendarToDetail = false;
+            return;
+        }
+
+        if (shouldRefreshOnCalendarClose) {
+            window.location.reload();
+        }
+    });
+
+})();
+</script>
+{{/if}}
+

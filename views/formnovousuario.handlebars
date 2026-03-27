@@ -119,7 +119,7 @@
                 placeholder="" required>
             <label for="email">E-mail</label>
             <div class="form-text text-muted" id="email-hint-dependente" style="display:none;">
-                Para dependentes, o e-mail é opcional. Se não preenchido, será gerado automaticamente.
+                Em Dependentes, o e-mail é herdado automaticamente do titular validado.
             </div>
             {{#if camposErro.email}}<div class="invalid-feedback" style="display:block;">{{camposErro.email}}</div>{{/if}}
         </div>
@@ -396,6 +396,9 @@
         const titularVerificadoInfo = document.getElementById('titular-verificado-info');
         const titularNome = document.getElementById('titular-nome');
         const btnTrocarTitular = document.getElementById('btn-trocar-titular');
+        const verificarFormGroup = document.getElementById('verificar-form-group');
+
+        let modoDependente = false;
 
         function selecionarCard(cardSelecionado, cardOutro) {
             cardSelecionado.classList.add('border-primary', 'bg-primary-subtle');
@@ -406,8 +409,23 @@
             formFieldsContainer.style.display = 'block';
         }
 
+        function resetarEmailDependente() {
+            emailInput.value = '';
+            emailInput.readOnly = true;
+            emailInput.required = true;
+            emailHintDep.style.display = 'block';
+        }
+
+        function aplicarEmailTitular(emailTitular) {
+            emailInput.value = (emailTitular || '').trim().toLowerCase();
+            emailInput.readOnly = true;
+            emailInput.required = true;
+            emailHintDep.style.display = 'block';
+        }
+
         // Clique em "Para mim"
         cardParaMim.addEventListener('click', function () {
+            modoDependente = false;
             selecionarCard(cardParaMim, cardDependente);
             verificarContainer.style.display = 'none';
             responsibleIdInput.value = '';
@@ -423,15 +441,17 @@
 
         // Clique em "Dependentes"
         cardDependente.addEventListener('click', function () {
+            modoDependente = true;
             selecionarCard(cardDependente, cardParaMim);
             cardDependente.classList.remove('border-primary', 'bg-primary-subtle');
             cardDependente.classList.add('border-success', 'bg-success-subtle');
             verificarContainer.style.display = 'block';
             formFieldsContainer.style.display = 'none';
             responsibleIdInput.value = '';
+            resetarEmailDependente();
             // Redefinir estado do painel de verificação
             titularVerificadoInfo.style.display = 'none';
-            document.getElementById('verificar-form-group').style.display = 'block';
+            verificarFormGroup.style.display = 'block';
             titularFeedback.textContent = '';
             titularEmailInput.value = '';
         });
@@ -442,6 +462,10 @@
 
         // Botão Verificar titular
         btnVerificar.addEventListener('click', async function () {
+            if (!modoDependente) {
+                return;
+            }
+
             const email = titularEmailInput.value.trim();
             if (!email) {
                 titularFeedback.textContent = 'Informe o e-mail do titular.';
@@ -465,11 +489,9 @@
                     responsibleIdInput.value = data.id;
                     titularNome.textContent = data.first_name + ' ' + data.last_name;
                     titularVerificadoInfo.style.display = 'block';
-                    document.getElementById('verificar-form-group').style.display = 'none';
+                    verificarFormGroup.style.display = 'none';
                     titularFeedback.textContent = '';
-                    // Dependente: e-mail é opcional
-                    emailInput.required = false;
-                    emailHintDep.style.display = 'block';
+                    aplicarEmailTitular(data.email);
                     mostrarFormulario();
                 } else {
                     titularFeedback.textContent = data.mensagem || 'Titular não encontrado.';
@@ -491,13 +513,12 @@
         btnTrocarTitular.addEventListener('click', function () {
             responsibleIdInput.value = '';
             titularVerificadoInfo.style.display = 'none';
-            document.getElementById('verificar-form-group').style.display = 'block';
+            verificarFormGroup.style.display = 'block';
             titularEmailInput.value = '';
             titularFeedback.textContent = '';
             btnVerificar.disabled = false;
             formFieldsContainer.style.display = 'none';
-            emailInput.required = true;
-            emailHintDep.style.display = 'none';
+            resetarEmailDependente();
         });
     })();
 </script>

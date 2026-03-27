@@ -84,13 +84,19 @@
                             <li class="nav-item">
                                 <span class="nav-link disabled">
                                     {{#if viewingAs}}
-                                        <i class="fa-solid fa-child"></i> {{viewingAs.first_name}} (dependente)
-                                    {{else}}
-                                        <i class="fa-solid fa-user"></i>
-                                        {{usuarioLogado.first_name}} {{usuarioLogado.last_name}}
-                                    {{/if}}
+                                    <i class="fa-solid fa-child"></i> {{viewingAs.first_name}} {{viewingAs.last_name}}
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item text-info" href="/conta/voltar">
+                                            <i class="fa-solid fa-arrow-left"></i> Voltar para minha conta
+                                        </a>
+                                    </li>
+                            {{else}}
+                            <i class="fa-solid fa-user"></i>
+                            {{usuarioLogado.first_name}} {{usuarioLogado.last_name}}
+                            {{/if}}
 
-                                </span>
+                            </span>
                             </li>
                             {{/if}}
 
@@ -104,7 +110,7 @@
 
                             <!-- Início conforme nível de acesso -->
                             <li class="nav-item">
-                                <a class="nav-link" href="{{#if useProfessorMenu}}/dashboard{{else}}/dashboardaluno{{/if}}">
+                                <a class="nav-link" href="/dashboard">
                                     <i class="fa-solid fa-star"></i> INÍCIO
                                 </a>
                             </li>

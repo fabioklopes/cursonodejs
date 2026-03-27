@@ -13,7 +13,10 @@ const path = require('path');
 const sharp = require('sharp');
 const argon2 = require('argon2');
 const { Op } = require('sequelize');
+const moment = require('moment');
 const Usuario = require('./models/Usuario');
+const Presenca = require('./models/Presenca');
+const { sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 
 
@@ -64,7 +67,7 @@ app.use(async (req, res, next) => {
     if (usuario && !req.session.viewingAs) {
         try {
             const dependentes = await Usuario.findAll({
-                where: { responsible_id: usuario.id },
+                where: { responsible_id: usuario.id, user_status: 'A' },
                 attributes: ['id', 'first_name', 'last_name'],
                 order: [['first_name', 'ASC']]
             });
@@ -112,7 +115,7 @@ function hasProfessorAccess(usuarioSessao) {
 }
 
 function getDefaultRedirectByRole(role) {
-    return ['PRO', 'ADM'].includes(role) ? '/dashboard' : '/dashboardaluno';
+    return '/dashboard';
 }
 
 // Helper para exibir o nome completo do perfil do usuário
@@ -411,19 +414,15 @@ app.get('/', (req, res) => {
 });
 
 app.get('/dashboard', (req, res) => {
-    if (!hasProfessorAccess(req.session.usuario)) {
-        return res.redirect('/dashboardaluno');
-    }
-
-    return res.render('dashboardprofessor');
-});
-
-app.get('/dashboardaluno', (req, res) => {
     if (hasProfessorAccess(req.session.usuario)) {
-        return res.redirect('/dashboard');
+        return res.render('dashboardprofessor');
     }
 
     return res.render('dashboardaluno');
+});
+
+app.get('/dashboardaluno', (req, res) => {
+    return res.redirect('/dashboard');
 });
 
 
@@ -572,7 +571,7 @@ app.post('/aluno/verificar-titular', async (req, res) => {
             return res.json({ ok: false, mensagem: 'E-mail não encontrado ou o usuário ainda não foi aprovado.' });
         }
 
-        return res.json({ ok: true, id: titular.id, first_name: titular.first_name, last_name: titular.last_name });
+        return res.json({ ok: true, id: titular.id, first_name: titular.first_name, last_name: titular.last_name, email: titular.email });
     } catch (err) {
         return res.json({ ok: false, mensagem: 'Erro ao verificar: ' + err.message });
     }
@@ -591,7 +590,12 @@ app.get('/conta/trocar/:id', async (req, res) => {
         const dependente = await Usuario.findByPk(dependenteId);
         if (!dependente || dependente.responsible_id !== usuarioLogado.id) {
             const mensagem = 'Dependente não encontrado ou sem permissão.';
-            return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+            return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+        }
+
+        if (dependente.user_status !== 'A') {
+            const mensagem = 'Este dependente ainda não foi aprovado por um professor/administrador.';
+            return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
         }
 
         req.session.viewingAs = {
@@ -601,17 +605,17 @@ app.get('/conta/trocar/:id', async (req, res) => {
             responsible_id: dependente.responsible_id
         };
 
-        return res.redirect('/aluno');
+        return res.redirect('/dashboard');
     } catch (err) {
         const mensagem = 'Erro ao trocar conta: ' + err.message;
-        return res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
     }
 });
 
 // Volta para a conta titular
 app.get('/conta/voltar', (req, res) => {
     req.session.viewingAs = null;
-    return res.redirect('/aluno');
+    return res.redirect('/dashboard');
 });
 
 app.get('/aluno/novo', (req, res) => {
@@ -679,11 +683,12 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
     try {
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
         const isDependent = !!responsibleId;
+        let titular = null;
         const beltDegreeValidation = validateBeltAndDegree(req.body.actual_belt, req.body.actual_degree);
 
         // Validar titular se for dependente
         if (isDependent) {
-            const titular = await Usuario.findByPk(responsibleId);
+            titular = await Usuario.findByPk(responsibleId);
             if (!titular || titular.user_status !== 'A' || titular.responsible_id !== null) {
                 if (req.file) {
                     const tempFilePath = path.join(uploadsDir, req.file.filename);
@@ -734,10 +739,9 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
 
         const passwordHash = await argon2.hash(senha);
 
-        // E-mail para dependente: gerado internamente se não fornecido
-        let emailFinal = (req.body.email || '').trim();
-        if (isDependent && !emailFinal) {
-            emailFinal = `dep_${Date.now()}_${responsibleId}@interno.oss`;
+        let emailFinal = (req.body.email || '').trim().toLowerCase();
+        if (isDependent) {
+            emailFinal = (titular.email || '').trim().toLowerCase();
         }
 
         const usuario = await Usuario.create({
@@ -991,8 +995,308 @@ app.get('/aluno/status/negar/:id', async (req, res) => {
 
 
 // FUNÇÕES DE PRESENÇAS
-app.get('/presenca', function(req, res) {
-    res.render('presenca');
+
+// Retorna o user_code efetivo (viewingAs ou logado)
+async function getEffectiveUserCode(req) {
+    if (req.session.viewingAs) {
+        const dep = await Usuario.findByPk(req.session.viewingAs.id);
+        return dep ? dep.user_code : null;
+    }
+    return req.session.usuario ? req.session.usuario.user_code : null;
+}
+
+function buildPresencaViewModel(p) {
+    const plain = p.get ? p.get({ plain: true }) : p;
+    const statusMap = { P: 'Pendente', A: 'Aprovada', N: 'Negada', C: 'Cancelada' };
+    const statusClassMap = { P: 'text-warning', A: 'text-success', N: 'text-danger', C: 'text-secondary' };
+    const classTypeDisplayMap = { Integral: 'Integral', Gi: 'Gi (1ª Aula)', 'No-Gi': 'No-Gi (2ª Aula)' };
+    return {
+        ...plain,
+        request_date_formatted: moment(plain.request_date).format('DD/MM/YYYY'),
+        request_date_ts: moment(plain.createdAt || plain.request_date).format('DD/MM/YYYY HH:mm:ss'),
+        request_date_iso: moment(plain.request_date).format('YYYY-MM-DD'),
+        status_label: statusMap[plain.status] || plain.status,
+        status_class: statusClassMap[plain.status] || '',
+        class_type_display: classTypeDisplayMap[plain.class_type] || plain.class_type
+    };
+}
+
+app.get('/presenca', async (req, res) => {
+    const pageRaw = parseInt(req.query.page, 10);
+    const currentPageRequested = Number.isInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+    const itemsPerPage = 10;
+    const pagesPerBlock = 8;
+
+    try {
+        const hasProfessorPrivileges = hasProfessorAccess(req.session.usuario);
+        let listaCompleta = [];
+
+        if (hasProfessorPrivileges) {
+            const pendentes = await Presenca.findAll({
+                where: { status: 'P' },
+                order: [['request_date', 'DESC']]
+            });
+
+            const userCodes = [...new Set(pendentes.map((p) => p.user_code).filter(Boolean))];
+            const usuarios = userCodes.length > 0
+                ? await Usuario.findAll({
+                    where: { user_code: { [Op.in]: userCodes } },
+                    attributes: ['user_code', 'first_name', 'last_name', 'photo']
+                })
+                : [];
+
+            const usuarioMap = usuarios.reduce((acc, u) => {
+                const plain = u.get({ plain: true });
+                acc[plain.user_code] = {
+                    fullName: `${plain.first_name || ''} ${plain.last_name || ''}`.trim() || plain.user_code,
+                    photo: plain.photo || '/uploads/users/default.jpg'
+                };
+                return acc;
+            }, {});
+
+            listaCompleta = pendentes.map((p) => {
+                const vm = buildPresencaViewModel(p);
+                const aluno = usuarioMap[vm.user_code] || {
+                    fullName: vm.user_code,
+                    photo: '/uploads/users/default.jpg'
+                };
+                return {
+                    ...vm,
+                    aluno_nome: aluno.fullName,
+                    aluno_nome_completo: aluno.fullName,
+                    aluno_photo: aluno.photo
+                };
+            });
+        } else {
+            const userCode = await getEffectiveUserCode(req);
+            if (!userCode) {
+                return res.redirect('/auth/login');
+            }
+
+            const todasPresencas = await Presenca.findAll({
+                where: { user_code: userCode },
+                order: [['request_date', 'DESC']]
+            });
+
+            listaCompleta = todasPresencas.map(buildPresencaViewModel);
+        }
+
+        const totalItems = listaCompleta.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+        const currentPage = Math.min(currentPageRequested, totalPages);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const presencasPaginadas = listaCompleta.slice(startIndex, startIndex + itemsPerPage);
+
+        const startPage = Math.floor((currentPage - 1) / pagesPerBlock) * pagesPerBlock + 1;
+        const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
+        const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_u, i) => ({
+            number: startPage + i,
+            isCurrent: startPage + i === currentPage
+        }));
+
+        return res.render('presenca', {
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'danger',
+            presencas: presencasPaginadas,
+            todasPresencasJSON: hasProfessorPrivileges ? '[]' : JSON.stringify(listaCompleta),
+            hasProfessorPrivileges,
+            pagination: {
+                currentPage,
+                totalPages,
+                totalItems,
+                hasPrev: currentPage > 1,
+                hasNext: currentPage < totalPages,
+                prevPage: currentPage > 1 ? currentPage - 1 : 1,
+                nextPage: currentPage < totalPages ? currentPage + 1 : totalPages,
+                pageNumbers
+            }
+        });
+    } catch (err) {
+        const hasProfessorPrivileges = hasProfessorAccess(req.session.usuario);
+        return res.render('presenca', {
+            mensagem: 'Erro ao carregar presenças: ' + err.message,
+            presencas: [],
+            todasPresencasJSON: '[]',
+            hasProfessorPrivileges,
+            pagination: {
+                currentPage: 1, totalPages: 1, totalItems: 0,
+                hasPrev: false, hasNext: false, prevPage: 1, nextPage: 1,
+                pageNumbers: [{ number: 1, isCurrent: true }]
+            }
+        });
+    }
+});
+
+app.post('/presenca/status/:id/aprovar', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.json({ ok: false, mensagem: 'Apenas professor ou administrador pode aprovar solicitações.' });
+    }
+
+    try {
+        const presencaId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(presencaId)) {
+            throw new Error('ID inválido.');
+        }
+
+        const presenca = await Presenca.findByPk(presencaId);
+        if (!presenca) {
+            throw new Error('Solicitação não encontrada.');
+        }
+        if (presenca.status !== 'P') {
+            throw new Error('Somente solicitações pendentes podem ser aprovadas.');
+        }
+
+        presenca.status = 'A';
+        presenca.processed_by = req.session.usuario.user_code;
+        await presenca.save();
+
+        return res.json({ ok: true, mensagem: 'Solicitação aprovada com sucesso.' });
+    } catch (err) {
+        return res.json({ ok: false, mensagem: 'Erro ao aprovar solicitação: ' + err.message });
+    }
+});
+
+app.post('/presenca/status/:id/negar', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.json({ ok: false, mensagem: 'Apenas professor ou administrador pode negar solicitações.' });
+    }
+
+    try {
+        const presencaId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(presencaId)) {
+            throw new Error('ID inválido.');
+        }
+
+        const observation = String(req.body.observation || '').trim();
+        if (!observation) {
+            throw new Error('Informe a observação para negar a solicitação.');
+        }
+
+        const presenca = await Presenca.findByPk(presencaId);
+        if (!presenca) {
+            throw new Error('Solicitação não encontrada.');
+        }
+        if (presenca.status !== 'P') {
+            throw new Error('Somente solicitações pendentes podem ser negadas.');
+        }
+
+        presenca.status = 'N';
+        presenca.observation = observation;
+        presenca.processed_by = req.session.usuario.user_code;
+        await presenca.save();
+
+        return res.json({ ok: true, mensagem: 'Solicitação negada com sucesso.' });
+    } catch (err) {
+        return res.json({ ok: false, mensagem: 'Erro ao negar solicitação: ' + err.message });
+    }
+});
+
+app.post('/presenca/solicitar', async (req, res) => {
+    try {
+        const userCode = await getEffectiveUserCode(req);
+        if (!userCode) {
+            return res.json({ ok: false, mensagem: 'Não autenticado.' });
+        }
+
+        const { dates, classTypes } = req.body;
+
+        if (!Array.isArray(dates) || dates.length === 0) {
+            return res.json({ ok: false, mensagem: 'Nenhuma data selecionada.' });
+        }
+
+        const today = moment().startOf('day');
+        const limitDate = moment().subtract(15, 'days').startOf('day');
+        const results = [];
+        const errors = [];
+
+        for (const dateStr of dates) {
+            const date = moment(dateStr, 'YYYY-MM-DD', true);
+
+            if (!date.isValid()) {
+                errors.push({ date: dateStr, error: 'Data inválida.' });
+                continue;
+            }
+            if (date.isAfter(today)) {
+                errors.push({ date: dateStr, error: 'Não é permitido solicitar para datas futuras.' });
+                continue;
+            }
+            if (date.isBefore(limitDate)) {
+                errors.push({ date: dateStr, error: `Anterior ao limite de 15 dias (${limitDate.format('DD/MM/YYYY')}).` });
+                continue;
+            }
+
+            const dayStart = date.clone().startOf('day').toDate();
+            const dayEnd = date.clone().endOf('day').toDate();
+            const existing = await Presenca.findOne({
+                where: {
+                    user_code: userCode,
+                    request_date: { [Op.between]: [dayStart, dayEnd] },
+                    status: { [Op.ne]: 'C' }
+                }
+            });
+            if (existing) {
+                errors.push({ date: dateStr, error: 'Já existe uma solicitação para este dia.' });
+                continue;
+            }
+
+            const dayOfWeek = date.day(); // 0=Dom ... 2=Ter
+            let class_type = 'Integral';
+            if (dayOfWeek === 2) {
+                const ct = classTypes && classTypes[dateStr] ? classTypes[dateStr] : 'Integral';
+                if (!['Integral', 'Gi', 'No-Gi'].includes(ct)) {
+                    errors.push({ date: dateStr, error: 'Tipo de aula inválido.' });
+                    continue;
+                }
+                class_type = ct;
+            }
+
+            const presenca = await Presenca.create({
+                request_date: date.toDate(),
+                user_code: userCode,
+                status: 'P',
+                class_type
+            });
+
+            const vm = buildPresencaViewModel(presenca);
+            results.push(vm);
+        }
+
+        return res.json({ ok: true, results, errors });
+    } catch (err) {
+        return res.json({ ok: false, mensagem: 'Erro interno: ' + err.message });
+    }
+});
+
+app.post('/presenca/cancelar/:id', async (req, res) => {
+    try {
+        const userCode = await getEffectiveUserCode(req);
+        if (!userCode) {
+            return res.json({ ok: false, mensagem: 'Não autenticado.' });
+        }
+
+        const presencaId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(presencaId)) {
+            return res.json({ ok: false, mensagem: 'ID inválido.' });
+        }
+
+        const presenca = await Presenca.findByPk(presencaId);
+        if (!presenca) {
+            return res.json({ ok: false, mensagem: 'Solicitação não encontrada.' });
+        }
+        if (presenca.user_code !== userCode) {
+            return res.json({ ok: false, mensagem: 'Sem permissão para cancelar esta solicitação.' });
+        }
+        if (presenca.status !== 'P') {
+            return res.json({ ok: false, mensagem: 'Apenas solicitações pendentes podem ser canceladas.' });
+        }
+
+        presenca.status = 'C';
+        await presenca.save();
+
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.json({ ok: false, mensagem: 'Erro ao cancelar: ' + err.message });
+    }
 });
 
 
@@ -1004,7 +1308,7 @@ app.get('/auth/login', function(req, res) {
 
     const redirect = typeof req.query.redirect === 'string' && req.query.redirect.startsWith('/')
         ? req.query.redirect
-        : '/aluno';
+        : '/dashboard';
 
     res.render('login', {
         layout: false,
@@ -1017,36 +1321,46 @@ app.post('/auth/verify', function(req, res) {
     const { email, password } = req.body;
     const requestedRedirect = typeof req.body.redirect === 'string' && req.body.redirect.startsWith('/')
         ? req.body.redirect
-        : '/aluno';
+        : '/dashboard';
 
     if (!email || !password) {
         const erro = encodeURIComponent('Informe e-mail e senha.');
         return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
     }
 
-    Usuario.findOne({ where: { email } }).then(async function(usuario) {
-        if (!usuario) {
+    Usuario.findAll({ where: { email: (email || '').trim().toLowerCase() } }).then(async function(usuarios) {
+        if (!usuarios || usuarios.length === 0) {
             const erro = encodeURIComponent('Credenciais inválidas.');
             return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
         }
 
-        let senhaValida = false;
+        const candidatosComSenhaValida = [];
 
-        if (typeof usuario.password === 'string' && usuario.password.startsWith('$argon2')) {
-            senhaValida = await argon2.verify(usuario.password, password);
-        } else {
-            senhaValida = usuario.password === password;
+        for (const candidato of usuarios) {
+            let senhaCandidataValida = false;
 
-            if (senhaValida) {
-                usuario.password = await argon2.hash(password);
-                await usuario.save();
+            if (typeof candidato.password === 'string' && candidato.password.startsWith('$argon2')) {
+                senhaCandidataValida = await argon2.verify(candidato.password, password);
+            } else {
+                senhaCandidataValida = candidato.password === password;
+
+                if (senhaCandidataValida) {
+                    candidato.password = await argon2.hash(password);
+                    await candidato.save();
+                }
+            }
+
+            if (senhaCandidataValida) {
+                candidatosComSenhaValida.push(candidato);
             }
         }
 
-        if (!senhaValida) {
+        if (candidatosComSenhaValida.length === 0) {
             const erro = encodeURIComponent('Credenciais inválidas.');
             return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
         }
+
+        const usuario = candidatosComSenhaValida.find((item) => item.user_status === 'A') || candidatosComSenhaValida[0];
 
         if (usuario.user_status === 'P') {
             const aviso = encodeURIComponent('Seu cadastro está pendente de aprovação. Fale com o seu professor.');
@@ -1072,7 +1386,7 @@ app.post('/auth/verify', function(req, res) {
             role: usuario.role
         };
 
-        const redirect = requestedRedirect === '/aluno'
+        const redirect = requestedRedirect === '/aluno' || requestedRedirect === '/dashboardaluno'
             ? getDefaultRedirectByRole(usuario.role)
             : requestedRedirect;
 
@@ -1097,7 +1411,6 @@ app.post('/auth/logout', function(req, res) {
 
 // ### FORMATADORES PARA HANDLEBARS ###
 const Handlebars = require("handlebars");
-const moment = require("moment");
 
 // data no formato DD/MM/YYYY
 Handlebars.registerHelper("formatDate", function (date) {
@@ -1135,6 +1448,33 @@ Handlebars.registerHelper("eq", function (a, b) {
   return a === b;
 });
 
+async function ensureUsuarioEmailNotUnique() {
+    const dialect = sequelize.getDialect();
+
+    if (dialect !== 'mysql' && dialect !== 'mariadb') {
+        return;
+    }
+
+    const [indexes] = await sequelize.query(`
+        SELECT INDEX_NAME
+        FROM INFORMATION_SCHEMA.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'tb_usuarios'
+          AND COLUMN_NAME = 'email'
+          AND NON_UNIQUE = 0
+          AND INDEX_NAME <> 'PRIMARY'
+    `);
+
+    for (const row of indexes) {
+        if (!row || !row.INDEX_NAME) {
+            continue;
+        }
+
+        await sequelize.query(`ALTER TABLE tb_usuarios DROP INDEX \`${row.INDEX_NAME}\``);
+        console.log(`Indice unico removido em tb_usuarios.email: ${row.INDEX_NAME}`);
+    }
+}
+
 
 
 
@@ -1150,10 +1490,17 @@ app.set('view engine', 'handlebars');
 
 // execução do servidor
 const PORT = process.env.ENV_PORT || 3000;
-app.listen(PORT, function() {
-    console.clear();
-    console.log('Servidor funcionando...');
-    console.log(`Acesse http://localhost:${PORT} para ver o app.`);
-});
+ensureUsuarioEmailNotUnique()
+    .then(() => {
+        app.listen(PORT, function() {
+            console.clear();
+            console.log('Servidor funcionando...');
+            console.log(`Acesse http://localhost:${PORT} para ver o app.`);
+        });
+    })
+    .catch((err) => {
+        console.error('Falha ao inicializar ajuste de indice de e-mail:', err.message);
+        process.exit(1);
+    });
 
 
