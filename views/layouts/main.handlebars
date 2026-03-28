@@ -5,6 +5,9 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="mobile-web-app-capable" content="yes">
+        
+        <title>Sistema Oss - Gestão de Jiu-jitsu</title>
+
         <link href="/css/bootstrap.min.css" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
         <link rel="icon" href="/img/logotipo.ico">
@@ -62,7 +65,22 @@
                 }
             }
         </style>
-        <title>Sistema Oss - Gestão de Jiu-jitsu</title>
+
+        <!-- Título do preview -->
+        <meta property="og:title" content="CRTN Belém - Jiu-jitsu ADPM">
+
+        <!-- Descrição do preview -->
+        <meta property="og:description" content="Sistema gerenciador de alunos, turmas e controle de presenças">
+
+        <!-- Imagem do preview -->
+        <meta property="og:image" content="/img/logotipo.ico">
+
+        <!-- URL da página -->
+        <meta property="og:url" content="https://iliac-markita-nattily.ngrok-free.dev">
+
+        <!-- Tipo de conteúdo -->
+        <meta property="og:type" content="website">
+
     </head>
 
     <body>
@@ -85,12 +103,14 @@
                                 <span class="nav-link disabled">
                                     {{#if viewingAs}}
                                     <i class="fa-solid fa-child"></i> {{viewingAs.first_name}} {{viewingAs.last_name}}
-                                    <li><hr class="dropdown-divider"></li>
-                                    <li>
-                                        <a class="dropdown-item text-info" href="/conta/voltar">
-                                            <i class="fa-solid fa-arrow-left"></i> Voltar para minha conta
-                                        </a>
-                                    </li>
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+                            <li>
+                                <a class="dropdown-item text-info" href="/conta/voltar">
+                                    <i class="fa-solid fa-arrow-left"></i> Voltar para minha conta
+                                </a>
+                            </li>
                             {{else}}
                             <i class="fa-solid fa-user"></i>
                             {{usuarioLogado.first_name}} {{usuarioLogado.last_name}}
