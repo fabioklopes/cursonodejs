@@ -19,6 +19,14 @@ const Presenca = require('./models/Presenca');
 const { sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 
+// Usado apenas para o "Esqueci a minha senha"
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
+
+
+const RESET_TOKEN_TTL_MINUTES = 10;
+const RESET_TOKEN_TTL_MS = RESET_TOKEN_TTL_MINUTES * 60 * 1000;
+
 
 
 
@@ -87,6 +95,9 @@ app.use(async (req, res, next) => {
 function isPublicRoute(pathname) {
     return pathname === '/auth/login'
         || pathname === '/auth/verify'
+        || pathname === '/auth/forgot-password'
+        || pathname === '/auth/reset-password'
+        || pathname === '/reset-password'
         || pathname === '/aluno/novo'
         || pathname === '/aluno/cadastrar'
         || pathname === '/aluno/verificar-titular'
@@ -133,6 +144,260 @@ function getRoleLabel(role) {
     }
 
     return role;
+}
+
+function normalizeEmail(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function getResetPasswordBaseUrl(req) {
+    const configuredBaseUrl = process.env.APP_BASE_URL || process.env.PUBLIC_APP_URL;
+    if (configuredBaseUrl) {
+        return configuredBaseUrl.replace(/\/$/, '');
+    }
+
+    return `${req.protocol}://${req.get('host')}`;
+}
+
+function buildResetPasswordLink(req, email, token) {
+    const params = new URLSearchParams({
+        email,
+        token
+    });
+
+    return `${getResetPasswordBaseUrl(req)}/auth/reset-password?${params.toString()}`;
+}
+
+function getPasswordResetTransportConfig() {
+    const service = process.env.SMTP_SERVICE || process.env.EMAIL_SERVICE;
+    const host = process.env.SMTP_HOST || process.env.EMAIL_HOST;
+    const portValue = process.env.SMTP_PORT || process.env.EMAIL_PORT;
+    const user = process.env.SMTP_USER || process.env.EMAIL_USER;
+    const pass = process.env.SMTP_PASS || process.env.EMAIL_PASS || process.env.EMAIL_PASSWORD;
+
+    if (!user || !pass || (!service && !host)) {
+        return null;
+    }
+
+    const port = portValue ? parseInt(portValue, 10) : undefined;
+    const secureSetting = process.env.SMTP_SECURE || process.env.EMAIL_SECURE;
+    const secure = typeof secureSetting === 'string'
+        ? secureSetting.toLowerCase() === 'true'
+        : port === 465;
+
+    const transportConfig = {
+        auth: { user, pass }
+    };
+
+    if (service) {
+        transportConfig.service = service;
+    } else {
+        transportConfig.host = host;
+        transportConfig.port = Number.isInteger(port) ? port : 587;
+        transportConfig.secure = secure;
+    }
+
+    return transportConfig;
+}
+
+function buildForgotPasswordMessages(options) {
+    const messages = [];
+
+    if (typeof options.emailFound === 'boolean') {
+        if (options.emailFound) {
+            messages.push({
+                variant: 'success',
+                title: 'E-mail localizado',
+                text: 'Encontramos cadastro(s) vinculado(s) ao e-mail informado.'
+            });
+        } else {
+            messages.push({
+                variant: 'warning',
+                title: 'E-mail não localizado',
+                text: 'Não encontramos esse e-mail em nossa base de dados.'
+            });
+        }
+    }
+
+    if (typeof options.deliveryStatus === 'string') {
+        if (options.deliveryStatus === 'sent') {
+            messages.push({
+                variant: 'success',
+                title: 'Mensagem enviada',
+                text: 'Enviamos a mensagem de redefinição para o e-mail informado.'
+            });
+        } else if (options.deliveryStatus === 'preview') {
+            messages.push({
+                variant: 'info',
+                title: 'Mensagem não enviada',
+                text: 'O envio de e-mail não está configurado neste ambiente. Para teste local, use o link de redefinição exibido abaixo.'
+            });
+        } else if (options.deliveryStatus === 'not_found') {
+            messages.push({
+                variant: 'secondary',
+                title: 'Mensagem não enviada',
+                text: 'Nenhuma mensagem foi enviada porque o e-mail informado não foi encontrado.'
+            });
+        } else {
+            messages.push({
+                variant: 'warning',
+                title: 'Mensagem não enviada',
+                text: 'Não foi possível enviar a mensagem de redefinição neste momento. Tente novamente em instantes.'
+            });
+        }
+    }
+
+    if (options.hasDuplicateEmail) {
+        messages.push({
+            variant: 'info',
+            title: 'Cadastros vinculados ao mesmo e-mail',
+            text: 'A nova senha definida pelo link será aplicada a todos os registros associados a este e-mail.'
+        });
+    }
+
+    if (options.errorMessage) {
+        messages.push({
+            variant: 'danger',
+            title: 'Não foi possível concluir a solicitação',
+            text: options.errorMessage
+        });
+    }
+
+    messages.push({
+        variant: 'info',
+        title: 'Prazo do link',
+        text: `O link de redefinição pode ser usado por apenas ${RESET_TOKEN_TTL_MINUTES} minutos. Depois disso, será necessário fazer uma nova solicitação.`
+    });
+
+    return messages;
+}
+
+function buildResetPasswordMessages(options) {
+    const messages = [];
+
+    if (options.successMessage) {
+        messages.push({
+            variant: 'success',
+            title: 'Senha redefinida',
+            text: options.successMessage
+        });
+    }
+
+    if (options.errorMessage) {
+        messages.push({
+            variant: 'danger',
+            title: 'Link inválido ou expirado',
+            text: options.errorMessage
+        });
+    }
+
+    if (options.infoMessage) {
+        messages.push({
+            variant: 'info',
+            title: 'Importante',
+            text: options.infoMessage
+        });
+    }
+
+    return messages;
+}
+
+function renderForgotPasswordPage(res, overrides = {}) {
+    const email = typeof overrides.email === 'string' ? overrides.email : '';
+
+    return res.render('resetpassword', {
+        pageTitle: overrides.pageTitle || 'Redefinição de Senha',
+        email,
+        requestMode: overrides.requestMode !== false,
+        resetMode: !!overrides.resetMode,
+        resetCompleted: !!overrides.resetCompleted,
+        statusMessages: overrides.statusMessages || [],
+        token: overrides.token || '',
+        previewResetLink: overrides.previewResetLink || '',
+        previewResetMessage: overrides.previewResetMessage || '',
+        canSubmitReset: overrides.canSubmitReset !== false,
+        showBackToLogin: overrides.showBackToLogin !== false
+    });
+}
+
+async function sendResetPasswordEmail(req, email, token, totalUsuarios) {
+    const resetLink = buildResetPasswordLink(req, email, token);
+    const transportConfig = getPasswordResetTransportConfig();
+    if (!transportConfig) {
+        return {
+            deliveryStatus: 'preview',
+            resetLink
+        };
+    }
+
+    const transporter = nodemailer.createTransport(transportConfig);
+    const from = process.env.SMTP_FROM || process.env.EMAIL_FROM || transportConfig.auth.user;
+    const pluralLabel = totalUsuarios > 1 ? 'cadastros' : 'cadastro';
+
+    await transporter.sendMail({
+        from,
+        to: email,
+        subject: 'Redefinição de senha',
+        text: [
+            'Recebemos uma solicitação para redefinir sua senha.',
+            '',
+            `Este link ficará disponível por ${RESET_TOKEN_TTL_MINUTES} minutos:`,
+            resetLink,
+            '',
+            totalUsuarios > 1
+                ? `A nova senha será aplicada a todos os ${pluralLabel} vinculados a este e-mail.`
+                : `A nova senha será aplicada ao ${pluralLabel} vinculado a este e-mail.`,
+            '',
+            'Se você não fez essa solicitação, ignore esta mensagem.'
+        ].join('\n'),
+        html: `
+            <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #212529;">
+                <h2 style="margin-bottom: 16px;">Redefinição de senha</h2>
+                <p>Recebemos uma solicitação para redefinir sua senha.</p>
+                <p>Use o link abaixo em até <strong>${RESET_TOKEN_TTL_MINUTES} minutos</strong>:</p>
+                <p><a href="${resetLink}">${resetLink}</a></p>
+                <p>${totalUsuarios > 1
+                ? 'A nova senha será aplicada a todos os cadastros vinculados a este e-mail.'
+                : 'A nova senha será aplicada ao cadastro vinculado a este e-mail.'}</p>
+                <p>Se você não fez essa solicitação, ignore esta mensagem.</p>
+            </div>
+        `
+    });
+
+    return {
+        deliveryStatus: 'sent',
+        resetLink
+    };
+}
+
+async function findUsuariosByEmail(email) {
+    return Usuario.findAll({
+        where: { email },
+        order: [['id', 'ASC']]
+    });
+}
+
+async function findUsuariosWithValidResetToken(email, token) {
+    const usuarios = await findUsuariosByEmail(email);
+    const now = new Date();
+    const validUsuarios = [];
+
+    for (const usuario of usuarios) {
+        if (!usuario.reset_token_hash || !usuario.reset_token_expires) {
+            continue;
+        }
+
+        if (new Date(usuario.reset_token_expires) < now) {
+            continue;
+        }
+
+        const tokenValido = await argon2.verify(usuario.reset_token_hash, token);
+        if (tokenValido) {
+            validUsuarios.push(usuario);
+        }
+    }
+
+    return validUsuarios;
 }
 
 const uploadsDir = path.join(__dirname, 'uploads', 'users');
@@ -620,14 +885,14 @@ app.get('/conta/voltar', (req, res) => {
 
 app.get('/aluno/novo', (req, res) => {
     const vm = buildUserFormViewModel(null, false);
-    
+
     // Capturar mensagem da sessão se existir
     if (req.session.mensagem) {
         vm.mensagem = req.session.mensagem;
         vm.tipoMensagem = req.session.tipoMensagem || 'info';
         vm.redirectUrl = req.session.redirectUrl;
         vm.redirectDelay = req.session.redirectDelay;
-        
+
         // Limpar dados da sessão após usar
         delete req.session.mensagem;
         delete req.session.tipoMensagem;
@@ -638,7 +903,7 @@ app.get('/aluno/novo', (req, res) => {
         vm.mensagem = req.query.mensagem || '';
         vm.tipoMensagem = req.query.tipo || 'info';
     }
-    
+
     res.render('formnovousuario', vm);
 });
 
@@ -646,7 +911,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
     // Função para renderizar o formulário com dados preservados em caso de erro
     const renderFormWithError = (errorMessage, fieldErrors = {}) => {
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
-        
+
         const formData = {
             first_name: req.body.first_name || '',
             last_name: req.body.last_name || '',
@@ -777,7 +1042,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
         res.redirect(`/aluno/novo?sucesso=1`);
     } catch (err) {
         console.error('Erro no cadastro:', err);
-        
+
         // Extrair mensagens de erro de validação do Sequelize
         const fieldErrors = {};
         let mensagemGeral = 'Erro ao criar aluno. ';
@@ -937,7 +1202,7 @@ app.get('/aluno/status/:id', (req, res) => {
     }
 
     const alunoId = req.params.id;
-    Usuario.findByPk(alunoId).then(async function(usuario) {
+    Usuario.findByPk(alunoId).then(async function (usuario) {
         if (usuario) {
             if (usuario.user_status !== 'P') {
                 throw new Error('Somente cadastros pendentes podem ser aprovados');
@@ -950,14 +1215,14 @@ app.get('/aluno/status/:id', (req, res) => {
         } else {
             throw new Error('Aluno não encontrado');
         }
-    }).then(function(finalizedPhoto) {
+    }).then(function (finalizedPhoto) {
         if (finalizedPhoto) {
             console.log(`Imagem aprovada: ${finalizedPhoto.finalFileName} (${(finalizedPhoto.fileSize / 1024).toFixed(2)}KB)`);
         }
 
         const mensagem = 'Cadastro aprovado com sucesso.';
         res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
-    }).catch(function(err) {
+    }).catch(function (err) {
         const mensagem = 'Erro: ' + err.message;
         res.redirect(`/aluno?mensagem=${encodeURIComponent(mensagem)}`);
     });
@@ -1300,8 +1565,8 @@ app.post('/presenca/cancelar/:id', async (req, res) => {
 });
 
 
-// login
-app.get('/auth/login', function(req, res) {
+// GRUPO DE ROTAS DE AUTENTICAÇÃO / RESET PASSWORD
+app.get('/auth/login', function (req, res) {
     if (req.session.usuario) {
         return res.redirect(getDefaultRedirectByRole(req.session.usuario.role));
     }
@@ -1317,7 +1582,7 @@ app.get('/auth/login', function(req, res) {
         redirect
     });
 });
-app.post('/auth/verify', function(req, res) {
+app.post('/auth/verify', function (req, res) {
     const { email, password } = req.body;
     const requestedRedirect = typeof req.body.redirect === 'string' && req.body.redirect.startsWith('/')
         ? req.body.redirect
@@ -1328,7 +1593,7 @@ app.post('/auth/verify', function(req, res) {
         return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
     }
 
-    Usuario.findAll({ where: { email: (email || '').trim().toLowerCase() } }).then(async function(usuarios) {
+    Usuario.findAll({ where: { email: (email || '').trim().toLowerCase() } }).then(async function (usuarios) {
         if (!usuarios || usuarios.length === 0) {
             const erro = encodeURIComponent('Credenciais inválidas.');
             return res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
@@ -1391,23 +1656,281 @@ app.post('/auth/verify', function(req, res) {
             : requestedRedirect;
 
         return res.redirect(redirect);
-    }).catch(function(err) {
+    }).catch(function (err) {
         const erro = encodeURIComponent('Erro ao verificar credenciais: ' + err.message);
         res.redirect(`/auth/login?erro=${erro}&redirect=${encodeURIComponent(requestedRedirect)}`);
     });
 });
-
-app.post('/auth/logout', function(req, res) {
-    req.session.destroy(function() {
+app.post('/auth/logout', function (req, res) {
+    req.session.destroy(function () {
         res.clearCookie('oss.sid');
         const erro = encodeURIComponent('Sessão encerrada. Faça login novamente.');
         res.redirect(`/auth/login?erro=${erro}`);
     });
 });
 
+app.get('/auth/forgot-password', (req, res) => {
+    renderForgotPasswordPage(res);
+});
 
+app.post('/auth/forgot-password', async (req, res) => {
+    const email = normalizeEmail(req.body.email);
 
+    if (!email) {
+        return renderForgotPasswordPage(res, {
+            email,
+            statusMessages: buildForgotPasswordMessages({
+                errorMessage: 'Informe o e-mail cadastrado para continuar.'
+            })
+        });
+    }
 
+    try {
+        const usuarios = await findUsuariosByEmail(email);
+        const emailFound = usuarios.length > 0;
+
+        if (!emailFound) {
+            return renderForgotPasswordPage(res, {
+                email,
+                statusMessages: buildForgotPasswordMessages({
+                    emailFound: false,
+                    deliveryStatus: 'not_found'
+                })
+            });
+        }
+
+        const token = crypto.randomBytes(32).toString('hex');
+        const tokenHash = await argon2.hash(token);
+        const reset_token_expires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+        const usuarioIds = usuarios.map((usuario) => usuario.id);
+
+        await Usuario.update(
+            { reset_token_hash: tokenHash, reset_token_expires },
+            {
+                where: {
+                    id: { [Op.in]: usuarioIds }
+                }
+            }
+        );
+
+        let deliveryStatus = 'failed';
+        let previewResetLink = '';
+
+        try {
+            const deliveryResult = await sendResetPasswordEmail(req, email, token, usuarios.length);
+            deliveryStatus = deliveryResult.deliveryStatus;
+            previewResetLink = deliveryResult.resetLink || '';
+        } catch (mailError) {
+            console.error('Falha ao enviar e-mail de redefinição:', mailError.message);
+        }
+
+        return renderForgotPasswordPage(res, {
+            email,
+            statusMessages: buildForgotPasswordMessages({
+                emailFound: true,
+                deliveryStatus,
+                hasDuplicateEmail: usuarios.length > 1
+            }),
+            previewResetLink,
+            previewResetMessage: deliveryStatus === 'preview'
+                ? 'Link gerado para teste local. Em produção, configure o SMTP para que o envio seja feito por e-mail.'
+                : ''
+        });
+    } catch (error) {
+        console.error('Erro ao processar solicitação de redefinição:', error);
+        return renderForgotPasswordPage(res, {
+            email,
+            statusMessages: buildForgotPasswordMessages({
+                errorMessage: 'Ocorreu um erro ao processar sua solicitação. Tente novamente em instantes.'
+            })
+        });
+    }
+});
+
+app.get('/auth/reset-password', async (req, res) => {
+    const email = normalizeEmail(req.query.email);
+    const token = typeof req.query.token === 'string' ? req.query.token.trim() : '';
+
+    if (!email || !token) {
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            canSubmitReset: false,
+            email,
+            token,
+            statusMessages: buildResetPasswordMessages({
+                errorMessage: 'O link de redefinição está incompleto. Solicite um novo link para continuar.',
+                infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+            })
+        });
+    }
+
+    try {
+        const validUsuarios = await findUsuariosWithValidResetToken(email, token);
+        if (validUsuarios.length === 0) {
+            return renderForgotPasswordPage(res, {
+                requestMode: false,
+                resetMode: true,
+                canSubmitReset: false,
+                email,
+                token,
+                statusMessages: buildResetPasswordMessages({
+                    errorMessage: 'Este link é inválido ou já expirou. Faça uma nova solicitação de redefinição.',
+                    infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+                })
+            });
+        }
+
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            email,
+            token,
+            statusMessages: buildResetPasswordMessages({
+                infoMessage: validUsuarios.length > 1
+                    ? 'A senha que você definir agora será aplicada a todos os cadastros vinculados a este e-mail.'
+                    : `Defina sua nova senha. Este link expira em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+            })
+        });
+    } catch (error) {
+        console.error('Erro ao validar link de redefinição:', error);
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            canSubmitReset: false,
+            email,
+            token,
+            statusMessages: buildResetPasswordMessages({
+                errorMessage: 'Não foi possível validar este link agora. Solicite uma nova redefinição.',
+                infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+            })
+        });
+    }
+});
+
+async function handleResetPasswordSubmit(req, res) {
+    const email = normalizeEmail(req.body.email);
+    const token = typeof req.body.token === 'string' ? req.body.token.trim() : '';
+    const newPassword = String(req.body.newPassword || '').trim();
+    const confirmPassword = String(req.body.confirmPassword || '').trim();
+
+    if (!email || !token) {
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            canSubmitReset: false,
+            email,
+            token,
+            statusMessages: buildResetPasswordMessages({
+                errorMessage: 'O link de redefinição é inválido. Solicite um novo link para continuar.',
+                infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+            })
+        });
+    }
+
+    if (!newPassword) {
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            email,
+            token,
+            statusMessages: buildResetPasswordMessages({
+                errorMessage: 'Informe a nova senha para concluir a redefinição.',
+                infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+            })
+        });
+    }
+
+    if (newPassword.length < 6) {
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            email,
+            token,
+            statusMessages: buildResetPasswordMessages({
+                errorMessage: 'A nova senha precisa ter pelo menos 6 caracteres.',
+                infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+            })
+        });
+    }
+
+    if (confirmPassword && newPassword !== confirmPassword) {
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            email,
+            token,
+            statusMessages: buildResetPasswordMessages({
+                errorMessage: 'A confirmação da senha não confere.',
+                infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+            })
+        });
+    }
+
+    try {
+        const validUsuarios = await findUsuariosWithValidResetToken(email, token);
+        if (validUsuarios.length === 0) {
+            return renderForgotPasswordPage(res, {
+                requestMode: false,
+                resetMode: true,
+                canSubmitReset: false,
+                email,
+                token,
+                statusMessages: buildResetPasswordMessages({
+                    errorMessage: 'Este link é inválido ou já expirou. Solicite uma nova redefinição.',
+                    infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+                })
+            });
+        }
+
+        const newHash = await argon2.hash(newPassword);
+        const validIds = validUsuarios.map((usuario) => usuario.id);
+
+        await Usuario.update(
+            {
+                password: newHash,
+                reset_token_hash: null,
+                reset_token_expires: null
+            },
+            {
+                where: {
+                    id: { [Op.in]: validIds }
+                }
+            }
+        );
+
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            resetCompleted: true,
+            canSubmitReset: false,
+            email,
+            statusMessages: buildResetPasswordMessages({
+                successMessage: validUsuarios.length > 1
+                    ? 'Sua senha foi redefinida com sucesso em todos os cadastros vinculados a este e-mail.'
+                    : 'Sua senha foi redefinida com sucesso.',
+                infoMessage: 'Se precisar, você já pode voltar ao login e acessar o sistema com a nova senha.'
+            })
+        });
+    } catch (error) {
+        console.error('Erro ao redefinir senha:', error);
+        return renderForgotPasswordPage(res, {
+            requestMode: false,
+            resetMode: true,
+            email,
+            token,
+            statusMessages: buildResetPasswordMessages({
+                errorMessage: 'Ocorreu um erro ao redefinir a senha. Solicite um novo link e tente novamente.',
+                infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
+            })
+        });
+    }
+}
+
+app.post('/auth/reset-password', handleResetPasswordSubmit);
+
+// Compatibilidade com formulários antigos
+app.post('/reset-password', handleResetPasswordSubmit);
 
 // ### FORMATADORES PARA HANDLEBARS ###
 const Handlebars = require("handlebars");
@@ -1418,13 +1941,11 @@ Handlebars.registerHelper("formatDate", function (date) {
     return moment(date).format("DD/MM/YYYY");
 });
 
-
 // hora no formato HH:mm:ss
 Handlebars.registerHelper("formatTime", function (timestamp) {
-  if (!timestamp) return "";
-  return moment(timestamp).format("HH:mm:ss");
+    if (!timestamp) return "";
+    return moment(timestamp).format("HH:mm:ss");
 });
-
 
 // data hora no formato dd/mm/yyyy HH:mm:ss
 Handlebars.registerHelper("formatTimestamp", function (timestamp) {
@@ -1434,18 +1955,18 @@ Handlebars.registerHelper("formatTimestamp", function (timestamp) {
 
 // formatação do telefone para o formato (XX) XXXXX-XXXX
 Handlebars.registerHelper("formatPhone", function (phone) {
-  if (!phone) return "";
-  const cleaned = ('' + phone).replace(/\D/g, '');
-  const match = cleaned.match(/^(\d{2})(\d{5})(\d{4})$/);
-  if (match) {
-    return `(${match[1]}) ${match[2]}-${match[3]}`;
-  }
-  return phone;
+    if (!phone) return "";
+    const cleaned = ('' + phone).replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{2})(\d{5})(\d{4})$/);
+    if (match) {
+        return `(${match[1]}) ${match[2]}-${match[3]}`;
+    }
+    return phone;
 });
 
 // Helper para comparação de igualdade
 Handlebars.registerHelper("eq", function (a, b) {
-  return a === b;
+    return a === b;
 });
 
 async function ensureUsuarioEmailNotUnique() {
@@ -1485,14 +2006,16 @@ app.engine('handlebars', engine({
     defaultLayout: 'main',
     partialsDir: [path.join(__dirname, 'views', 'layouts')]
 }));
+
 app.set('view engine', 'handlebars');
 
+app.set('views', path.join(__dirname, 'views'));
 
 // execução do servidor
 const PORT = process.env.ENV_PORT || 3000;
 ensureUsuarioEmailNotUnique()
     .then(() => {
-        app.listen(PORT, function() {
+        app.listen(PORT, function () {
             console.clear();
             console.log('Servidor funcionando...');
             console.log(`Acesse http://localhost:${PORT} para ver o app.`);

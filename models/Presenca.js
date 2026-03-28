@@ -51,6 +51,6 @@ Presenca.associate = models => {
  * - force: true - Apaga a tabela existente e cria uma nova (perda de dados).
  * - alter: true - Altera a tabela para corresponder ao modelo, sem apagar dados (recomendado para produção).
 */
-Presenca.sync({ alter: true });
+// Presenca.sync({ alter: true });
 
 module.exports = Presenca;

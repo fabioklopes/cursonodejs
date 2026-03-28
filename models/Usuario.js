@@ -19,6 +19,8 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         type: db.Sequelize.STRING,
         allowNull: false
     },
+    reset_token_hash: db.Sequelize.STRING,
+    reset_token_expires: db.Sequelize.DATE,
     role: {
         type: db.Sequelize.ENUM('ADM', 'PRO', 'STD'),
         allowNull: false,
