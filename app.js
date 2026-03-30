@@ -575,6 +575,21 @@ const BELT_MAP = BELT_OPTIONS.reduce((acc, option) => {
     return acc;
 }, {});
 
+const MONTH_NAMES_PT_BR = [
+    'Janeiro',
+    'Fevereiro',
+    'Março',
+    'Abril',
+    'Maio',
+    'Junho',
+    'Julho',
+    'Agosto',
+    'Setembro',
+    'Outubro',
+    'Novembro',
+    'Dezembro'
+];
+
 function getMaxDegreeForBelt(actualBelt) {
     return actualBelt === BLACK_BELT_VALUE ? 6 : 4;
 }
@@ -662,6 +677,104 @@ function getBeltDisplayData(actualBelt, actualDegree) {
         degreeLabel,
         summaryLabel: `${beltLabel} - ${degreeLabel}`,
         imagePath: `/img/belts/${beltValue}_${degree}.png`
+    };
+}
+
+function parseBirthDateParts(birthDateValue) {
+    const iso = String(birthDateValue || '').slice(0, 10);
+    const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) {
+        return null;
+    }
+
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10);
+    const day = parseInt(match[3], 10);
+
+    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+        return null;
+    }
+
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+        return null;
+    }
+
+    return { year, month, day };
+}
+
+function calculateAgeFromBirthDateParts(parts, todayDate = new Date()) {
+    if (!parts) {
+        return 0;
+    }
+
+    const todayYear = todayDate.getFullYear();
+    const todayMonth = todayDate.getMonth() + 1;
+    const todayDay = todayDate.getDate();
+
+    let age = todayYear - parts.year;
+    const birthdayPassed = todayMonth > parts.month || (todayMonth === parts.month && todayDay >= parts.day);
+
+    if (!birthdayPassed) {
+        age -= 1;
+    }
+
+    return Math.max(age, 0);
+}
+
+function buildBirthdayWidgetData(users = [], todayDate = new Date()) {
+    const todayDay = todayDate.getDate();
+    const todayMonthIndex = todayDate.getMonth();
+
+    const birthdays = users
+        .map((user) => {
+            const plain = user.get({ plain: true });
+            const birthParts = parseBirthDateParts(plain.birth_date);
+            if (!birthParts) {
+                return null;
+            }
+
+            const fullName = `${plain.first_name || ''} ${plain.last_name || ''}`.trim() || plain.user_code;
+            const age = calculateAgeFromBirthDateParts(birthParts, todayDate);
+            const beltDisplay = getBeltDisplayData(plain.actual_belt, plain.actual_degree);
+            const birthMonthIndex = birthParts.month - 1;
+            const birthMonthLabel = MONTH_NAMES_PT_BR[birthMonthIndex] || '-';
+            const isToday = birthParts.day === todayDay && birthMonthIndex === todayMonthIndex;
+
+            return {
+                user_code: plain.user_code,
+                full_name: fullName,
+                avatar: plain.photo || '/uploads/users/default.jpg',
+                age,
+                birth_year: birthParts.year,
+                birth_month_index: birthMonthIndex,
+                birth_day: birthParts.day,
+                birth_month_label: birthMonthLabel,
+                birth_short: `${String(birthParts.day).padStart(2, '0')}/${String(birthParts.month).padStart(2, '0')}`,
+                birth_full: `${String(birthParts.day).padStart(2, '0')}/${String(birthParts.month).padStart(2, '0')}/${birthParts.year}`,
+                is_today: isToday,
+                belt_label: beltDisplay.beltLabel,
+                degree_label: beltDisplay.degreeLabel,
+                belt_summary_label: beltDisplay.summaryLabel,
+                belt_image_path: beltDisplay.imagePath
+            };
+        })
+        .filter(Boolean)
+        .sort((a, b) => {
+            if (a.birth_month_index !== b.birth_month_index) {
+                return a.birth_month_index - b.birth_month_index;
+            }
+
+            if (a.birth_day !== b.birth_day) {
+                return a.birth_day - b.birth_day;
+            }
+
+            return a.full_name.localeCompare(b.full_name, 'pt-BR');
+        });
+
+    return {
+        currentMonth: todayMonthIndex,
+        currentMonthLabel: MONTH_NAMES_PT_BR[todayMonthIndex],
+        birthdays
     };
 }
 
@@ -816,12 +929,44 @@ app.get('/', (req, res) => {
     return res.redirect(getDefaultRedirectByRole(req.session.usuario.role));
 });
 
-app.get('/dashboard', (req, res) => {
-    if (hasProfessorAccess(req.session.usuario)) {
-        return res.render('dashboardprofessor');
-    }
+app.get('/dashboard', async (req, res) => {
+    try {
+        const birthdayUsers = await Usuario.findAll({
+            where: {
+                role: 'STD',
+                user_status: 'A',
+                birth_date: {
+                    [Op.not]: null
+                }
+            },
+            attributes: [
+                'user_code',
+                'first_name',
+                'last_name',
+                'birth_date',
+                'photo',
+                'actual_belt',
+                'actual_degree'
+            ],
+            order: [['first_name', 'ASC'], ['last_name', 'ASC']]
+        });
 
-    return res.render('dashboardaluno');
+        const birthdayWidget = buildBirthdayWidgetData(birthdayUsers);
+
+        if (hasProfessorAccess(req.session.usuario)) {
+            return res.render('dashboardprofessor', { birthdayWidget });
+        }
+
+        return res.render('dashboardaluno', { birthdayWidget });
+    } catch (err) {
+        console.error('Erro ao carregar dashboard com aniversariantes:', err);
+
+        if (hasProfessorAccess(req.session.usuario)) {
+            return res.render('dashboardprofessor', { birthdayWidget: { currentMonth: new Date().getMonth(), currentMonthLabel: MONTH_NAMES_PT_BR[new Date().getMonth()], birthdays: [] } });
+        }
+
+        return res.render('dashboardaluno', { birthdayWidget: { currentMonth: new Date().getMonth(), currentMonthLabel: MONTH_NAMES_PT_BR[new Date().getMonth()], birthdays: [] } });
+    }
 });
 
 app.get('/dashboardaluno', (req, res) => {

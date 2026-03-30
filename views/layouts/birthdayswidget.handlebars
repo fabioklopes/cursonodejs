@@ -1,0 +1,302 @@
+<section class="card mt-4 birthday-widget" data-current-month="{{currentMonth}}">
+    <div class="card-body p-3 p-md-4">
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+            <h5 class="mb-0">🎈 Aniversariantes</h5>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm birthday-nav-prev" aria-label="Mês anterior">&lt;</button>
+                <span class="fw-semibold birthday-current-month">{{currentMonthLabel}}</span>
+                <button type="button" class="btn btn-outline-secondary btn-sm birthday-nav-next" aria-label="Próximo mês">&gt;</button>
+            </div>
+        </div>
+
+        <div class="birthday-table-scroll border rounded-3">
+            <table class="table table-hover align-middle mb-0 birthday-table-fixed">
+                <thead class="table-light position-sticky top-0">
+                    <tr>
+                        <th scope="col" aria-label="Aniversariantes">Nome</th>
+                        <th scope="col" class="text-end">Data</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#if birthdays.length}}
+                    {{#each birthdays}}
+                    <tr
+                        class="birthday-row birthday-row-clickable"
+                        data-month="{{birth_month_index}}"
+                        data-day="{{birth_day}}"
+                        data-full-name="{{full_name}}"
+                        data-age="{{age}}"
+                        data-birth-full="{{birth_full}}"
+                        data-photo="{{avatar}}"
+                        data-belt-image="{{belt_image_path}}"
+                        data-belt-summary="{{belt_summary_label}}"
+                        data-degree-label="{{degree_label}}"
+                        data-month-label="{{birth_month_label}}"
+                        role="button"
+                        tabindex="0"
+                    >
+                        <td>
+                            <span class="d-inline-flex align-items-center gap-2 birthday-name-wrap">
+                                <span>{{full_name}}</span>
+                            </span>
+                        </td>
+                        <td class="text-end birthday-date-cell {{#if is_today}}birthday-date-today{{/if}}">
+                            {{#if is_today}}🎂HOJE!🎈{{else}}{{birth_short}}{{/if}}
+                        </td>
+                    </tr>
+                    {{/each}}
+                    {{else}}
+                    <tr>
+                        <td colspan="2" class="text-center text-body-secondary py-4">Sem aniversariantes cadastrados.</td>
+                    </tr>
+                    {{/if}}
+                    <tr class="birthday-empty-row d-none">
+                        <td colspan="2" class="text-center text-body-secondary py-4">Nenhum aniversariante neste mês.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal fade" id="birthdayPersonModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="birthdayModalTitle">Aniversariante de {{currentMonthLabel}}</h5>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="birthdayModalAvatar" src="/uploads/users/default.jpg" alt="Avatar do aniversariante" class="rounded-circle birthday-avatar-lg mb-3">
+                    <div class="fw-semibold fs-5" id="birthdayModalName">-</div>
+                    <div class="mt-3">
+                        <img id="birthdayModalBeltImage" src="/img/belts/white_0.png" alt="Faixa atual" class="img-fluid birthday-belt-image">
+                        <div class="small text-body-secondary mt-1" id="birthdayModalDegree">Nenhum Grau</div>
+                    </div>
+                    <div class="mt-3">
+                        <div><span class="fw-semibold">Aniversário:</span> <span id="birthdayModalBirthDate">-</span></div>
+                        <div><span class="fw-semibold">Idade:</span> <span id="birthdayModalAge">-</span> anos</div>
+                    </div>
+                </div>
+                <div class="modal-footer justify-content-center">
+                    <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+    .birthday-table-scroll {
+        max-height: 320px;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .birthday-avatar-lg {
+        width: 110px;
+        height: 110px;
+        object-fit: cover;
+    }
+
+    .birthday-belt-image {
+        max-height: 34px;
+    }
+
+    .birthday-date-today {
+        color: #b45309;
+        font-weight: 700;
+    }
+
+    .birthday-row-clickable {
+        cursor: pointer;
+    }
+
+    .birthday-person-trigger {
+        color: inherit;
+    }
+
+    .birthday-person-trigger:hover,
+    .birthday-person-trigger:focus {
+        color: var(--bs-primary);
+    }
+
+    .birthday-table-fixed {
+        width: 100%;
+        table-layout: fixed;
+        font-size: 0.9rem;
+    }
+
+    .birthday-table-fixed th,
+    .birthday-table-fixed td {
+        font-size: 0.9rem;
+    }
+
+    .birthday-person-trigger {
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 768px) {
+        .birthday-name-wrap {
+            width: 100%;
+            justify-content: flex-start;
+            text-align: left;
+        }
+    }
+</style>
+
+<script>
+    (function() {
+        function initBirthdayWidget() {
+        const widget = document.querySelector('.birthday-widget');
+        if (!widget) {
+            return;
+        }
+
+        const monthNames = [
+            'Janeiro',
+            'Fevereiro',
+            'Março',
+            'Abril',
+            'Maio',
+            'Junho',
+            'Julho',
+            'Agosto',
+            'Setembro',
+            'Outubro',
+            'Novembro',
+            'Dezembro'
+        ];
+
+        const monthLabel = widget.querySelector('.birthday-current-month');
+        const prevButton = widget.querySelector('.birthday-nav-prev');
+        const nextButton = widget.querySelector('.birthday-nav-next');
+        const rows = Array.from(widget.querySelectorAll('.birthday-row'));
+        const emptyRow = widget.querySelector('.birthday-empty-row');
+
+        let selectedMonth = Number.parseInt(widget.getAttribute('data-current-month'), 10);
+        if (!Number.isInteger(selectedMonth) || selectedMonth < 0 || selectedMonth > 11) {
+            selectedMonth = new Date().getMonth();
+        }
+
+        function renderMonth() {
+            if (monthLabel) {
+                monthLabel.textContent = monthNames[selectedMonth] || '-';
+            }
+
+            let visibleRows = 0;
+            rows.forEach((row) => {
+                const rowMonth = Number.parseInt(row.getAttribute('data-month'), 10);
+                const shouldShow = rowMonth === selectedMonth;
+                row.classList.toggle('d-none', !shouldShow);
+                if (shouldShow) {
+                    visibleRows += 1;
+                }
+            });
+
+            if (emptyRow) {
+                emptyRow.classList.toggle('d-none', visibleRows > 0);
+            }
+        }
+
+        if (prevButton) {
+            prevButton.addEventListener('click', function() {
+                selectedMonth = (selectedMonth + 11) % 12;
+                renderMonth();
+            });
+        }
+
+        if (nextButton) {
+            nextButton.addEventListener('click', function() {
+                selectedMonth = (selectedMonth + 1) % 12;
+                renderMonth();
+            });
+        }
+
+        const modal = document.getElementById('birthdayPersonModal');
+        if (modal) {
+            if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                return;
+            }
+
+            const birthdayModal = bootstrap.Modal.getOrCreateInstance(modal);
+
+            rows.forEach((row) => {
+                row.addEventListener('click', function() {
+                    birthdayModal.show(row);
+                });
+
+                row.addEventListener('keydown', function(event) {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        birthdayModal.show(row);
+                    }
+                });
+            });
+
+            modal.addEventListener('show.bs.modal', function(event) {
+                const trigger = event.relatedTarget;
+                if (!trigger) {
+                    return;
+                }
+
+                const fullName = trigger.getAttribute('data-full-name') || '-';
+                const age = trigger.getAttribute('data-age') || '-';
+                const birthFull = trigger.getAttribute('data-birth-full') || '-';
+                const photo = trigger.getAttribute('data-photo') || '/uploads/users/default.jpg';
+                const beltImage = trigger.getAttribute('data-belt-image') || '/img/belts/white_0.png';
+                const degreeLabel = trigger.getAttribute('data-degree-label') || 'Nenhum Grau';
+                const monthLabelText = trigger.getAttribute('data-month-label') || (monthNames[selectedMonth] || '-');
+
+                const title = document.getElementById('birthdayModalTitle');
+                const avatar = document.getElementById('birthdayModalAvatar');
+                const name = document.getElementById('birthdayModalName');
+                const beltImageEl = document.getElementById('birthdayModalBeltImage');
+                const degree = document.getElementById('birthdayModalDegree');
+                const birthDate = document.getElementById('birthdayModalBirthDate');
+                const ageEl = document.getElementById('birthdayModalAge');
+
+                if (title) {
+                    title.textContent = `Aniversariante de ${monthLabelText}`;
+                }
+
+                if (avatar) {
+                    avatar.src = photo;
+                    avatar.alt = `Avatar de ${fullName}`;
+                }
+
+                if (name) {
+                    name.textContent = fullName;
+                }
+
+                if (beltImageEl) {
+                    beltImageEl.onerror = function() {
+                        this.onerror = null;
+                        this.src = '/img/belts/white_0.png';
+                    };
+                    beltImageEl.src = beltImage;
+                }
+
+                if (degree) {
+                    degree.textContent = degreeLabel;
+                }
+
+                if (birthDate) {
+                    birthDate.textContent = birthFull;
+                }
+
+                if (ageEl) {
+                    ageEl.textContent = age;
+                }
+            });
+        }
+
+        renderMonth();
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initBirthdayWidget);
+            return;
+        }
+
+        initBirthdayWidget();
+    })();
+</script>
