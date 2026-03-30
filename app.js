@@ -29,11 +29,35 @@ const nodemailer = require('nodemailer');
 
 const RESET_TOKEN_TTL_MINUTES = 10;
 const RESET_TOKEN_TTL_MS = RESET_TOKEN_TTL_MINUTES * 60 * 1000;
+const MOTIVATIONAL_PHRASES_PATH = path.join(__dirname, 'utils', 'frases_motivacionais.txt');
 
 
 
 
 // configuração gerais da aplicação / momento de execução
+function loadMotivationalPhrases() {
+    try {
+        return fs.readFileSync(MOTIVATIONAL_PHRASES_PATH, 'utf8')
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
+    } catch (err) {
+        console.error('Erro ao carregar frases motivacionais:', err);
+        return [];
+    }
+}
+
+const motivationalPhrases = loadMotivationalPhrases();
+
+function getRandomMotivationalMessage() {
+    if (motivationalPhrases.length === 0) {
+        return '';
+    }
+
+    const randomIndex = Math.floor(Math.random() * motivationalPhrases.length);
+    return motivationalPhrases[randomIndex];
+}
+
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -96,6 +120,7 @@ app.use(async (req, res, next) => {
 
 app.use((req, res, next) => {
     res.locals.birthdayLoginModal = req.session.birthdayLoginModal || null;
+    res.locals.motivationalMessage = req.session.motivationalMessage || '';
 
     if (req.session.birthdayLoginModal) {
         delete req.session.birthdayLoginModal;
@@ -2513,6 +2538,7 @@ app.post('/auth/verify', function (req, res) {
         };
 
         req.session.birthdayLoginModal = buildBirthdayLoginModalData(usuario);
+        req.session.motivationalMessage = getRandomMotivationalMessage();
 
         const redirect = requestedRedirect === '/aluno' || requestedRedirect === '/dashboardaluno'
             ? getDefaultRedirectByRole(usuario.role)
