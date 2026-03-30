@@ -20,7 +20,7 @@ const Presenca = db.sequelize.define('tb_presenca', {
         type: db.Sequelize.ENUM('Integral', 'Gi', 'No-Gi'),
         allowNull: false
     },
-    class_id: db.Sequelize.INTEGER,
+    class_code: db.Sequelize.STRING(5),
     observation: db.Sequelize.STRING,
     processed_by: db.Sequelize.STRING(5)
 });
@@ -41,6 +41,12 @@ Presenca.associate = models => {
         as: 'processadoPor',
         foreignKey: 'processed_by',
         targetKey: 'user_code'
+    });
+
+    Presenca.belongsTo(models.Turma,{
+        as: 'turma',
+        foreignKey: 'class_code',
+        targetKey: 'class_code'
     });
 };
 

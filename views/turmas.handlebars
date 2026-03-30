@@ -1,0 +1,439 @@
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+</div>
+{{/if}}
+
+<style>
+    #modalTurmaAlunos .modal-dialog {
+        max-width: 680px;
+    }
+
+    #modalTurmaAlunos .modal-content {
+        max-height: 90vh;
+    }
+
+    #modalTurmaAlunos .modal-body {
+        overflow: hidden;
+    }
+
+    .turma-alunos-scroll {
+        max-height: 42vh;
+        overflow-y: auto;
+    }
+
+    @media (max-width: 768px) {
+        #modalTurmaAlunos .modal-content {
+            max-height: 86vh;
+        }
+
+        .turma-alunos-scroll {
+            max-height: 38vh;
+        }
+    }
+</style>
+
+    <button type="button" class="btn btn-primary btn-sm mb-3" data-bs-toggle="modal" data-bs-target="#modalNovaTurma">
+                    <i class="fa-solid fa-folder-plus"></i> Nova Turma
+                </button>
+
+    <div class="col-12 col-lg-7">
+        <div class="card h-100 border-0 shadow-sm">
+            <div class="card-header bg-light">
+                <i class="fa-solid fa-folder-tree"></i> Turmas Ativas
+            </div>
+            <div class="card-body">
+                {{#if turmas.length}}
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>Turma</th>
+                                <th>Matriculados</th>
+                                <th class="text-end"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{#each turmas}}
+                            <tr class="turma-row" data-class-code="{{class_code}}" data-class-name="{{class_name}}" data-can-manage="{{#if canManage}}Y{{else}}N{{/if}}" style="cursor:pointer;">
+                                <td>{{class_name}}</td>
+                                <td>{{enrolled_count}}</td>
+                                <td class="text-end">
+                                    {{#if canManage}}
+                                    <form action="/turmas/desativar/{{class_code}}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger py-0 px-1" onclick="event.stopPropagation(); return confirm('Desativar esta turma?');" title="Desativar turma">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </form>
+                                    {{else}}
+                                    <span class="text-body-secondary small">Somente visualização</span>
+                                    {{/if}}
+                                </td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+                {{else}}
+                <p class="text-body-secondary mb-0">Nenhuma turma ativa cadastrada.</p>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-light d-flex flex-wrap align-items-center justify-content-between gap-2">
+        <span><i class="fa-solid fa-user-graduate"></i> Matricular Alunos Aprovados</span>
+        <span class="small text-body-secondary">Alunos ativos: {{totalAlunosAtivos}}</span>
+    </div>
+    <div class="card-body">
+        <div class="input-group input-group-sm mb-3">
+            <span class="input-group-text"><i class="fa-solid fa-magnifying-glass"></i></span>
+            <input type="text" id="alunoSearchInput" class="form-control" placeholder="Pesquisar aluno...">
+        </div>
+
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnSelectAll">
+                <i class="fa-solid fa-check-double"></i> Selecionar todos
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClearSelection">
+                <i class="fa-solid fa-eraser"></i> Limpar seleção
+            </button>
+            <span class="badge text-bg-primary">Selecionados: <span id="selectedCount">0</span></span>
+            <span class="badge text-bg-info">Matriculados na turma escolhida: <span id="selectedClassEnrolledCount">0</span></span>
+        </div>
+
+        <form id="formMatricular" action="/turmas/matricular" method="POST">
+            <input type="hidden" name="class_code" id="classCodeHidden" value="">
+
+            {{#if alunos.length}}
+            <div class="table-responsive" style="max-height: 320px; overflow-y: auto;">
+                <table class="table table-striped align-middle mb-0">
+                    <thead class="table-light" style="position: sticky; top: 0; z-index: 2;">
+                        <tr>
+                            <th style="width: 46px;">#</th>
+                            <th>Aluno</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alunosTableBody">
+                        {{#each alunos}}
+                        <tr class="aluno-row" data-search="{{full_name}} {{user_code}}">
+                            <td>
+                                <input
+                                    class="form-check-input aluno-checkbox"
+                                    type="checkbox"
+                                    name="user_codes"
+                                    value="{{user_code}}"
+                                    id="ck_{{user_code}}"
+                                >
+                            </td>
+                            <td>
+                                <label for="ck_{{user_code}}" class="form-label mb-0 d-flex align-items-center gap-2">
+                                    <img src="{{avatar}}" alt="Avatar de {{full_name}}" style="width:28px; height:28px; border-radius:50%; object-fit:cover; border:1px solid var(--bs-border-color-translucent);">
+                                    <span>{{full_name}}</span>
+                                </label>
+                            </td>
+                        </tr>
+                        {{/each}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+            <p class="text-body-secondary mb-2">Nenhum aluno disponível para matrícula.</p>
+            {{/if}}
+
+            <div class="mt-3 text-end">
+                <button type="button" class="btn btn-primary" id="btnOpenEnrollModal" {{#unless turmas.length}}disabled{{/unless}}>
+                    <i class="fa-solid fa-user-plus"></i> Matricular
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="modalNovaTurma" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalNovaTurmaLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form action="/turmas/criar" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalNovaTurmaLabel"><i class="fa-solid fa-folder-plus"></i> Nova Turma</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-floating mb-3">
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="class_name"
+                            name="class_name"
+                            placeholder=""
+                            maxlength="100"
+                            required
+                        >
+                        <label for="class_name">Nome da nova turma</label>
+                    </div>
+                    <p class="small text-body-secondary mb-0">
+                        Evite nomes muito parecidos com turmas existentes. O sistema bloqueia permutações e variações sintáticas de nomes semelhantes.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fa-solid fa-circle-plus"></i> Criar turma
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalMatricular" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalMatricularLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalMatricularLabel">Confirmar Matrícula</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-body-secondary">Selecione a turma para os alunos selecionados</p>
+                <div class="form-floating">
+                    <select class="form-select" id="classCodeSelectModal" required>
+                        <option value="">-- Selecione --</option>
+                        {{#each turmas}}
+                        <option value="{{class_code}}" data-enrolled-count="{{enrolled_count}}">{{class_name}} </option>
+                        {{/each}}
+                    </select>
+                    <label for="classCodeSelectModal">Turma</label>
+                </div>
+                <p class="mt-3 mb-0">Alunos selecionados: <strong id="selectedCountModal">0</strong></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="btnConfirmMatricula">Confirmar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalTurmaAlunos" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalTurmaAlunosLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
+        <div class="modal-content">
+            <form action="/turmas/remover-alunos" method="POST" id="formRemoverAlunosTurma">
+                <input type="hidden" name="class_code" id="removeClassCodeHidden" value="">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTurmaAlunosLabel">Alunos Matriculados</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-body-secondary mb-3" id="turmaSelecionadaNome"></p>
+                    <div class="turma-alunos-scroll">
+                        <div id="turmaAlunosLista" class="list-group"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-danger" id="btnRemoverAlunosTurma">Remover Aluno(s)</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script id="alunosByTurmaData" type="application/json">{{{alunosByTurmaJSON}}}</script>
+
+<script>
+(() => {
+    document.addEventListener('DOMContentLoaded', () => {
+    const alunosByTurma = JSON.parse(document.getElementById('alunosByTurmaData')?.textContent || '{}');
+    const checkboxes = Array.from(document.querySelectorAll('.aluno-checkbox'));
+    const selectedCount = document.getElementById('selectedCount');
+    const selectedCountModal = document.getElementById('selectedCountModal');
+    const classCodeSelectModal = document.getElementById('classCodeSelectModal');
+    const selectedClassEnrolledCount = document.getElementById('selectedClassEnrolledCount');
+    const classCodeHidden = document.getElementById('classCodeHidden');
+    const formMatricular = document.getElementById('formMatricular');
+    const btnSelectAll = document.getElementById('btnSelectAll');
+    const btnClearSelection = document.getElementById('btnClearSelection');
+    const btnOpenEnrollModal = document.getElementById('btnOpenEnrollModal');
+    const btnConfirmMatricula = document.getElementById('btnConfirmMatricula');
+    const modalEl = document.getElementById('modalMatricular');
+    const alunoSearchInput = document.getElementById('alunoSearchInput');
+    const alunoRows = Array.from(document.querySelectorAll('.aluno-row'));
+    const turmaRows = Array.from(document.querySelectorAll('.turma-row'));
+    const turmaModalEl = document.getElementById('modalTurmaAlunos');
+    const turmaNomeEl = document.getElementById('turmaSelecionadaNome');
+    const turmaAlunosListaEl = document.getElementById('turmaAlunosLista');
+    const removeClassCodeHidden = document.getElementById('removeClassCodeHidden');
+    const btnRemoverAlunosTurma = document.getElementById('btnRemoverAlunosTurma');
+
+    if (!formMatricular || !btnOpenEnrollModal || !modalEl) {
+        return;
+    }
+
+    function updateSelectedCounter() {
+        const count = checkboxes.filter((item) => item.checked).length;
+        if (selectedCount) selectedCount.textContent = String(count);
+        if (selectedCountModal) selectedCountModal.textContent = String(count);
+    }
+
+    function renderTurmaAlunosModal(classCode, className, canManage) {
+        if (!turmaAlunosListaEl || !turmaNomeEl || !removeClassCodeHidden) {
+            return;
+        }
+
+        const alunosDaTurma = Array.isArray(alunosByTurma[classCode]) ? alunosByTurma[classCode] : [];
+        turmaNomeEl.textContent = `${className} - ${alunosDaTurma.length} aluno(s) matriculado(s)`;
+        removeClassCodeHidden.value = classCode;
+        turmaAlunosListaEl.innerHTML = '';
+
+        if (alunosDaTurma.length === 0) {
+            turmaAlunosListaEl.innerHTML = '<div class="text-body-secondary small">Nenhum aluno matriculado nesta turma.</div>';
+            if (btnRemoverAlunosTurma) {
+                btnRemoverAlunosTurma.disabled = true;
+            }
+            return;
+        }
+
+        alunosDaTurma.forEach((aluno) => {
+            const row = document.createElement('label');
+            row.className = 'list-group-item d-flex align-items-center gap-2';
+
+            const checkbox = document.createElement('input');
+            checkbox.className = 'form-check-input me-1';
+            checkbox.type = 'checkbox';
+            checkbox.name = 'user_codes';
+            checkbox.value = aluno.user_code;
+            checkbox.disabled = !canManage;
+
+            const avatar = document.createElement('img');
+            avatar.src = aluno.avatar || '/uploads/users/default.jpg';
+            avatar.alt = `Avatar de ${aluno.full_name}`;
+            avatar.style.width = '28px';
+            avatar.style.height = '28px';
+            avatar.style.objectFit = 'cover';
+            avatar.style.borderRadius = '50%';
+            avatar.style.border = '1px solid var(--bs-border-color-translucent)';
+
+            const name = document.createElement('span');
+            name.textContent = aluno.full_name;
+
+            row.appendChild(checkbox);
+            row.appendChild(avatar);
+            row.appendChild(name);
+            turmaAlunosListaEl.appendChild(row);
+        });
+
+        if (btnRemoverAlunosTurma) {
+            btnRemoverAlunosTurma.disabled = !canManage;
+        }
+    }
+
+    if (turmaRows.length > 0 && turmaModalEl && window.bootstrap && bootstrap.Modal) {
+        turmaRows.forEach((row) => {
+            row.addEventListener('click', () => {
+                const classCode = row.getAttribute('data-class-code') || '';
+                const className = row.getAttribute('data-class-name') || '';
+                const canManage = row.getAttribute('data-can-manage') === 'Y';
+
+                renderTurmaAlunosModal(classCode, className, canManage);
+                const bsTurmaModal = bootstrap.Modal.getOrCreateInstance(turmaModalEl);
+                bsTurmaModal.show();
+            });
+        });
+    }
+
+    const formRemoverAlunosTurma = document.getElementById('formRemoverAlunosTurma');
+    if (formRemoverAlunosTurma) {
+        formRemoverAlunosTurma.addEventListener('submit', (event) => {
+            const selecionados = formRemoverAlunosTurma.querySelectorAll('input[name="user_codes"]:checked');
+            if (selecionados.length === 0) {
+                event.preventDefault();
+                alert('Selecione ao menos um aluno para remover da turma.');
+                return;
+            }
+
+            if (!confirm('Remover aluno(s) selecionado(s) desta turma?')) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    if (alunoSearchInput) {
+        alunoSearchInput.addEventListener('input', () => {
+            const term = String(alunoSearchInput.value || '').trim().toLowerCase();
+            alunoRows.forEach((row) => {
+                const haystack = String(row.getAttribute('data-search') || '').toLowerCase();
+                row.style.display = !term || haystack.includes(term) ? '' : 'none';
+            });
+        });
+    }
+
+    function updateClassCounter() {
+        if (!classCodeSelectModal || !selectedClassEnrolledCount) {
+            return;
+        }
+        const option = classCodeSelectModal.options[classCodeSelectModal.selectedIndex];
+        const count = option ? option.getAttribute('data-enrolled-count') || '0' : '0';
+        selectedClassEnrolledCount.textContent = count;
+    }
+
+    checkboxes.forEach((checkbox) => {
+        checkbox.addEventListener('change', updateSelectedCounter);
+    });
+
+    if (btnSelectAll) {
+        btnSelectAll.addEventListener('click', () => {
+            checkboxes.forEach((checkbox) => { checkbox.checked = true; });
+            updateSelectedCounter();
+        });
+    }
+
+    if (btnClearSelection) {
+        btnClearSelection.addEventListener('click', () => {
+            checkboxes.forEach((checkbox) => { checkbox.checked = false; });
+            updateSelectedCounter();
+        });
+    }
+
+    if (classCodeSelectModal) {
+        classCodeSelectModal.addEventListener('change', updateClassCounter);
+        updateClassCounter();
+    }
+
+    btnOpenEnrollModal.addEventListener('click', () => {
+        const count = checkboxes.filter((item) => item.checked).length;
+        if (count === 0) {
+            alert('Selecione ao menos um aluno para matricular.');
+            return;
+        }
+
+        if (!window.bootstrap || !bootstrap.Modal) {
+            alert('Nao foi possivel abrir o modal no momento. Atualize a pagina e tente novamente.');
+            return;
+        }
+
+        const bsModal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        if (!bsModal) {
+            return;
+        }
+
+        updateSelectedCounter();
+        bsModal.show();
+    });
+
+    btnConfirmMatricula.addEventListener('click', () => {
+        const selectedClassCode = classCodeSelectModal ? String(classCodeSelectModal.value || '').trim() : '';
+        if (!selectedClassCode) {
+            alert('Selecione a turma para confirmar a matricula.');
+            return;
+        }
+
+        classCodeHidden.value = selectedClassCode;
+        formMatricular.submit();
+    });
+
+    updateSelectedCounter();
+    });
+})();
+</script>

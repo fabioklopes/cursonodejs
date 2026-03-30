@@ -1,7 +1,7 @@
 function generateCode(tamanho = 5) {
 	const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // removido "i" e "o"
 	const numeros = "123456789"; // removido "0"
-	const caracteres = letras + letras.toUpperCase() + numeros;
+	const caracteres = letras + numeros;
 
 	let codigo = "";
 

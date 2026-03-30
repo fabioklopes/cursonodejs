@@ -111,6 +111,10 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         type: db.Sequelize.INTEGER,
         allowNull: true,
     },
+    class_code: {
+        type: db.Sequelize.STRING(5),
+        allowNull: true,
+    },
     user_status: {
         type: db.Sequelize.ENUM('P', 'A', 'C'), // Pending, Ativo ou Cancelled
         allowNull: false,

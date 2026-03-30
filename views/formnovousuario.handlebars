@@ -149,6 +149,19 @@
             {{#if camposErro.birth_date}}<div class="invalid-feedback" style="display:block;">{{camposErro.birth_date}}</div>{{/if}}
         </div>
 
+        {{#unless isEditMode}}
+        <div class="form-floating mb-3">
+            <select class="form-select" id="class_code" name="class_code" {{#if camposErro.class_code}}{{/if}} required>
+                <option value="">-- Selecione --</option>
+                {{#each turmaOptions}}
+                <option value="{{class_code}}" {{#if selected}}selected{{/if}}>{{class_name}} ({{class_code}})</option>
+                {{/each}}
+            </select>
+            <label for="class_code">Turma para solicitação de acesso</label>
+            {{#if camposErro.class_code}}<div class="invalid-feedback" style="display:block;">{{camposErro.class_code}}</div>{{/if}}
+        </div>
+        {{/unless}}
+
         <div class="form-floating mb-3">
             <select class="form-select" id="actual_belt" name="actual_belt" {{#if camposErro.actual_belt}}{{/if}} aria-label="" required>
                 <option value="">-- Selecione --</option>

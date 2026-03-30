@@ -16,8 +16,11 @@ const { Op } = require('sequelize');
 const moment = require('moment');
 const Usuario = require('./models/Usuario');
 const Presenca = require('./models/Presenca');
-const { sequelize } = require('./models/db');
+const Turma = require('./models/Turma');
+const TurmaAluno = require('./models/TurmaAluno');
+const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
+const generateClassCode = require('./utils/classcode_generator');
 
 // Usado apenas para o "Esqueci a minha senha"
 const crypto = require('crypto');
@@ -144,6 +147,134 @@ function getRoleLabel(role) {
     }
 
     return role;
+}
+
+function normalizeClassName(value) {
+    return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, ' ')
+        .trim();
+}
+
+function tokenizeClassName(value) {
+    const stopWords = new Set(['a', 'o', 'e', 'de', 'da', 'do', 'das', 'dos']);
+    return normalizeClassName(value)
+        .split(/\s+/)
+        .filter((token) => token && !stopWords.has(token));
+}
+
+function levenshteinDistance(a, b) {
+    const aLen = a.length;
+    const bLen = b.length;
+
+    if (aLen === 0) return bLen;
+    if (bLen === 0) return aLen;
+
+    const matrix = Array.from({ length: aLen + 1 }, () => new Array(bLen + 1).fill(0));
+
+    for (let i = 0; i <= aLen; i++) matrix[i][0] = i;
+    for (let j = 0; j <= bLen; j++) matrix[0][j] = j;
+
+    for (let i = 1; i <= aLen; i++) {
+        for (let j = 1; j <= bLen; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            matrix[i][j] = Math.min(
+                matrix[i - 1][j] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j - 1] + cost
+            );
+        }
+    }
+
+    return matrix[aLen][bLen];
+}
+
+function areClassNamesTooSimilar(nameA, nameB) {
+    const tokensA = tokenizeClassName(nameA);
+    const tokensB = tokenizeClassName(nameB);
+
+    if (tokensA.length === 0 || tokensB.length === 0) {
+        return false;
+    }
+
+    const sortedA = [...tokensA].sort().join(' ');
+    const sortedB = [...tokensB].sort().join(' ');
+    if (sortedA === sortedB) {
+        return true;
+    }
+
+    const compactA = tokensA.join('');
+    const compactB = tokensB.join('');
+    if (compactA === compactB || compactA.includes(compactB) || compactB.includes(compactA)) {
+        return true;
+    }
+
+    const distance = levenshteinDistance(compactA, compactB);
+    const maxLen = Math.max(compactA.length, compactB.length);
+    const similarity = maxLen === 0 ? 1 : 1 - (distance / maxLen);
+    return similarity >= 0.82;
+}
+
+async function generateUniqueClassCode() {
+    const maxAttempts = 40;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const classCode = generateClassCode(5);
+        const existing = await Turma.findOne({ where: { class_code: classCode } });
+        if (!existing) {
+            return classCode;
+        }
+    }
+
+    throw new Error('Nao foi possivel gerar um codigo unico para a turma. Tente novamente.');
+}
+
+async function getActiveTurmasOptions(selectedClassCode = '') {
+    const turmas = await Turma.findAll({
+        where: { active: 'Y' },
+        attributes: ['class_code', 'class_name'],
+        order: [['class_name', 'ASC']]
+    });
+
+    return turmas.map((turma) => {
+        const plain = turma.get({ plain: true });
+        return {
+            ...plain,
+            selected: plain.class_code === selectedClassCode
+        };
+    });
+}
+
+async function getActiveTurmasForUser(userCode) {
+    if (!userCode) {
+        return [];
+    }
+
+    const vinculos = await TurmaAluno.findAll({
+        where: {
+            user_code: userCode,
+            active: 'Y'
+        },
+        attributes: ['class_code']
+    });
+
+    const classCodes = [...new Set(vinculos.map((item) => item.class_code).filter(Boolean))];
+    if (classCodes.length === 0) {
+        return [];
+    }
+
+    const turmas = await Turma.findAll({
+        where: {
+            active: 'Y',
+            class_code: { [Op.in]: classCodes }
+        },
+        attributes: ['class_code', 'class_name'],
+        order: [['class_name', 'ASC']]
+    });
+
+    return turmas.map((turma) => turma.get({ plain: true }));
 }
 
 function normalizeEmail(value) {
@@ -642,7 +773,7 @@ async function finalizePendingPhotoIfNeeded(usuario) {
     return replaceUserPhoto(usuario, tempFileName);
 }
 
-function buildUserFormViewModel(usuario, isEditMode) {
+function buildUserFormViewModel(usuario, isEditMode, turmaOptions = []) {
     const formData = usuario
         ? usuario.get({ plain: true })
         : {
@@ -656,8 +787,11 @@ function buildUserFormViewModel(usuario, isEditMode) {
             wagi_size: '',
             zubon_size: '',
             obi_size: '',
-            photo: '/uploads/users/default.jpg'
+            photo: '/uploads/users/default.jpg',
+            class_code: ''
         };
+
+    const selectedClassCode = formData.class_code || '';
 
     return {
         isEditMode,
@@ -668,6 +802,10 @@ function buildUserFormViewModel(usuario, isEditMode) {
         beltOptions: BELT_OPTIONS.map((option) => ({
             ...option,
             selected: option.value === formData.actual_belt
+        })),
+        turmaOptions: turmaOptions.map((turma) => ({
+            ...turma,
+            selected: turma.class_code === selectedClassCode
         }))
     };
 }
@@ -688,6 +826,350 @@ app.get('/dashboard', (req, res) => {
 
 app.get('/dashboardaluno', (req, res) => {
     return res.redirect('/dashboard');
+});
+
+app.get('/turmas', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Acesso restrito a professor e administrador.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    try {
+        const usuarioSessao = req.session.usuario;
+        const turmas = await Turma.findAll({
+            where: { active: 'Y' },
+            order: [['class_name', 'ASC']]
+        });
+
+        const matriculas = await TurmaAluno.findAll({
+            where: { active: 'Y' },
+            attributes: ['class_code']
+        });
+
+        const countByClassCode = matriculas.reduce((acc, item) => {
+            const classCode = item.class_code;
+            acc[classCode] = (acc[classCode] || 0) + 1;
+            return acc;
+        }, {});
+
+        const alunos = await Usuario.findAll({
+            where: {
+                role: 'STD',
+                user_status: 'A'
+            },
+            attributes: ['user_code', 'first_name', 'last_name', 'photo'],
+            order: [['first_name', 'ASC'], ['last_name', 'ASC']]
+        });
+
+        const turmasVm = turmas.map((turma) => {
+            const plain = turma.get({ plain: true });
+            const canManage = usuarioSessao.role === 'ADM' || plain.created_by === usuarioSessao.user_code;
+            return {
+                ...plain,
+                canManage,
+                enrolled_count: countByClassCode[plain.class_code] || 0
+            };
+        });
+
+        const alunosVm = alunos.map((aluno) => {
+            const plain = aluno.get({ plain: true });
+            return {
+                ...plain,
+                full_name: `${plain.first_name || ''} ${plain.last_name || ''}`.trim() || plain.user_code,
+                avatar: plain.photo || '/uploads/users/default.jpg'
+            };
+        });
+
+        const matriculasDetalhadas = await TurmaAluno.findAll({
+            where: { active: 'Y' },
+            attributes: ['class_code', 'user_code']
+        });
+
+        const userCodesMatriculados = [...new Set(matriculasDetalhadas.map((item) => item.user_code).filter(Boolean))];
+        const alunosMatriculados = userCodesMatriculados.length > 0
+            ? await Usuario.findAll({
+                where: {
+                    user_code: { [Op.in]: userCodesMatriculados },
+                    role: 'STD',
+                    user_status: 'A'
+                },
+                attributes: ['user_code', 'first_name', 'last_name', 'photo']
+            })
+            : [];
+
+        const alunoByCode = alunosMatriculados.reduce((acc, item) => {
+            const plain = item.get({ plain: true });
+            acc[plain.user_code] = {
+                user_code: plain.user_code,
+                full_name: `${plain.first_name || ''} ${plain.last_name || ''}`.trim() || plain.user_code,
+                avatar: plain.photo || '/uploads/users/default.jpg'
+            };
+            return acc;
+        }, {});
+
+        const alunosByTurma = matriculasDetalhadas.reduce((acc, item) => {
+            const classCode = item.class_code;
+            const aluno = alunoByCode[item.user_code];
+            if (!classCode || !aluno) {
+                return acc;
+            }
+
+            if (!acc[classCode]) {
+                acc[classCode] = [];
+            }
+
+            acc[classCode].push(aluno);
+            return acc;
+        }, {});
+
+        Object.keys(alunosByTurma).forEach((classCode) => {
+            alunosByTurma[classCode].sort((a, b) => a.full_name.localeCompare(b.full_name, 'pt-BR'));
+        });
+
+        return res.render('turmas', {
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'info',
+            turmas: turmasVm,
+            alunos: alunosVm,
+            totalAlunosAtivos: alunosVm.length,
+            alunosByTurmaJSON: JSON.stringify(alunosByTurma)
+        });
+    } catch (err) {
+        return res.render('turmas', {
+            mensagem: 'Erro ao carregar turmas: ' + err.message,
+            tipoMensagem: 'danger',
+            turmas: [],
+            alunos: [],
+            totalAlunosAtivos: 0,
+            alunosByTurmaJSON: '{}'
+        });
+    }
+});
+
+app.post('/turmas/criar', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Apenas professor ou administrador pode criar turma.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
+    }
+
+    try {
+        const className = String(req.body.class_name || '').trim();
+        if (!className) {
+            throw new Error('Informe o nome da turma.');
+        }
+
+        const turmasAtivas = await Turma.findAll({
+            where: { active: 'Y' },
+            attributes: ['class_name']
+        });
+
+        const hasVerySimilarName = turmasAtivas.some((turma) => {
+            const existingName = turma.class_name;
+            return areClassNamesTooSimilar(existingName, className);
+        });
+
+        if (hasVerySimilarName) {
+            throw new Error('Ja existe turma com nome igual ou muito parecido. Use um nome mais especifico.');
+        }
+
+        const classCode = await generateUniqueClassCode();
+
+        await Turma.create({
+            class_name: className,
+            class_code: classCode,
+            created_by: req.session.usuario.user_code,
+            active: 'Y'
+        });
+
+        const mensagem = 'Turma criada com sucesso.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=success`);
+    } catch (err) {
+        const mensagem = err.message || 'Erro ao criar turma.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
+    }
+});
+
+app.post('/turmas/desativar/:classCode', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Apenas professor ou administrador pode alterar turmas.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
+    }
+
+    try {
+        const classCode = String(req.params.classCode || '').trim().toUpperCase();
+        const turma = await Turma.findOne({ where: { class_code: classCode } });
+        if (!turma) {
+            throw new Error('Turma nao encontrada.');
+        }
+
+        const isAdmin = req.session.usuario.role === 'ADM';
+        const isOwner = turma.created_by === req.session.usuario.user_code;
+
+        if (!isAdmin && !isOwner) {
+            throw new Error('Voce pode visualizar esta turma, mas nao pode alterar ou excluir.');
+        }
+
+        turma.active = 'N';
+        await turma.save();
+
+        await TurmaAluno.update(
+            { active: 'N' },
+            { where: { class_code: classCode } }
+        );
+
+        const mensagem = 'Turma desativada com sucesso.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=success`);
+    } catch (err) {
+        const mensagem = err.message || 'Erro ao desativar turma.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
+    }
+});
+
+app.post('/turmas/matricular', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Apenas professor ou administrador pode matricular alunos.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
+    }
+
+    try {
+        const classCode = String(req.body.class_code || '').trim().toUpperCase();
+        const userCodesRaw = Array.isArray(req.body.user_codes)
+            ? req.body.user_codes
+            : req.body.user_codes
+                ? [req.body.user_codes]
+                : [];
+        const userCodes = [...new Set(userCodesRaw.map((code) => String(code || '').trim().toUpperCase()).filter(Boolean))];
+
+        if (!classCode) {
+            throw new Error('Selecione a turma para matricula.');
+        }
+
+        if (userCodes.length === 0) {
+            throw new Error('Selecione ao menos um aluno para matricular.');
+        }
+
+        const turma = await Turma.findOne({ where: { class_code: classCode, active: 'Y' } });
+        if (!turma) {
+            throw new Error('Turma selecionada nao esta disponivel.');
+        }
+
+        const alunos = await Usuario.findAll({
+            where: {
+                user_code: { [Op.in]: userCodes },
+                role: 'STD',
+                user_status: 'A'
+            },
+            attributes: ['user_code']
+        });
+
+        if (alunos.length === 0) {
+            throw new Error('Nenhum aluno ativo valido foi encontrado para matricula.');
+        }
+
+        let matriculados = 0;
+        for (const aluno of alunos) {
+            const vinculo = await TurmaAluno.findOne({
+                where: {
+                    class_code: classCode,
+                    user_code: aluno.user_code
+                }
+            });
+
+            if (!vinculo) {
+                await TurmaAluno.create({
+                    class_code: classCode,
+                    user_code: aluno.user_code,
+                    active: 'Y',
+                    enrolled_by: req.session.usuario.user_code
+                });
+                matriculados += 1;
+                continue;
+            }
+
+            if (vinculo.active !== 'Y') {
+                vinculo.active = 'Y';
+                vinculo.enrolled_by = req.session.usuario.user_code;
+                await vinculo.save();
+                matriculados += 1;
+            }
+        }
+
+        await Usuario.update(
+            { class_code: classCode },
+            { where: { user_code: { [Op.in]: alunos.map((item) => item.user_code) } } }
+        );
+
+        const mensagem = `${matriculados} aluno(s) matriculado(s) com sucesso.`;
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=success`);
+    } catch (err) {
+        const mensagem = err.message || 'Erro ao matricular alunos.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
+    }
+});
+
+app.post('/turmas/remover-alunos', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Apenas professor ou administrador pode remover alunos de turmas.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
+    }
+
+    try {
+        const classCode = String(req.body.class_code || '').trim().toUpperCase();
+        const userCodesRaw = Array.isArray(req.body.user_codes)
+            ? req.body.user_codes
+            : req.body.user_codes
+                ? [req.body.user_codes]
+                : [];
+        const userCodes = [...new Set(userCodesRaw.map((code) => String(code || '').trim().toUpperCase()).filter(Boolean))];
+
+        if (!classCode) {
+            throw new Error('Turma nao informada para remocao.');
+        }
+
+        if (userCodes.length === 0) {
+            throw new Error('Selecione ao menos um aluno para remover.');
+        }
+
+        const turma = await Turma.findOne({ where: { class_code: classCode, active: 'Y' } });
+        if (!turma) {
+            throw new Error('Turma nao encontrada ou inativa.');
+        }
+
+        const isAdmin = req.session.usuario.role === 'ADM';
+        const isOwner = turma.created_by === req.session.usuario.user_code;
+        if (!isAdmin && !isOwner) {
+            throw new Error('Voce pode visualizar esta turma, mas nao pode alterar alunos matriculados.');
+        }
+
+        const [affectedRows] = await TurmaAluno.update(
+            { active: 'N' },
+            {
+                where: {
+                    class_code: classCode,
+                    user_code: { [Op.in]: userCodes },
+                    active: 'Y'
+                }
+            }
+        );
+
+        if (affectedRows > 0) {
+            await Usuario.update(
+                { class_code: null },
+                {
+                    where: {
+                        user_code: { [Op.in]: userCodes },
+                        class_code: classCode
+                    }
+                }
+            );
+        }
+
+        const mensagem = `${affectedRows} aluno(s) removido(s) da turma com sucesso.`;
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=success`);
+    } catch (err) {
+        const mensagem = err.message || 'Erro ao remover alunos da turma.';
+        return res.redirect(`/turmas?mensagem=${encodeURIComponent(mensagem)}&tipo=danger`);
+    }
 });
 
 
@@ -883,34 +1365,44 @@ app.get('/conta/voltar', (req, res) => {
     return res.redirect('/dashboard');
 });
 
-app.get('/aluno/novo', (req, res) => {
-    const vm = buildUserFormViewModel(null, false);
+app.get('/aluno/novo', async (req, res) => {
+    try {
+        const turmaOptions = await getActiveTurmasOptions();
+        const vm = buildUserFormViewModel(null, false, turmaOptions);
 
-    // Capturar mensagem da sessão se existir
-    if (req.session.mensagem) {
-        vm.mensagem = req.session.mensagem;
-        vm.tipoMensagem = req.session.tipoMensagem || 'info';
-        vm.redirectUrl = req.session.redirectUrl;
-        vm.redirectDelay = req.session.redirectDelay;
+        // Capturar mensagem da sessão se existir
+        if (req.session.mensagem) {
+            vm.mensagem = req.session.mensagem;
+            vm.tipoMensagem = req.session.tipoMensagem || 'info';
+            vm.redirectUrl = req.session.redirectUrl;
+            vm.redirectDelay = req.session.redirectDelay;
 
-        // Limpar dados da sessão após usar
-        delete req.session.mensagem;
-        delete req.session.tipoMensagem;
-        delete req.session.redirectUrl;
-        delete req.session.redirectDelay;
-    } else {
-        // Capturar mensagem de query param se existir (compatibilidadecom redirecionamentos antigos)
-        vm.mensagem = req.query.mensagem || '';
-        vm.tipoMensagem = req.query.tipo || 'info';
+            // Limpar dados da sessão após usar
+            delete req.session.mensagem;
+            delete req.session.tipoMensagem;
+            delete req.session.redirectUrl;
+            delete req.session.redirectDelay;
+        } else {
+            // Capturar mensagem de query param se existir (compatibilidadecom redirecionamentos antigos)
+            vm.mensagem = req.query.mensagem || '';
+            vm.tipoMensagem = req.query.tipo || 'info';
+        }
+
+        return res.render('formnovousuario', vm);
+    } catch (err) {
+        return res.render('formnovousuario', {
+            ...buildUserFormViewModel(null, false, []),
+            mensagem: 'Erro ao carregar formulario: ' + err.message,
+            tipoMensagem: 'erro'
+        });
     }
-
-    res.render('formnovousuario', vm);
 });
 
 app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
     // Função para renderizar o formulário com dados preservados em caso de erro
-    const renderFormWithError = (errorMessage, fieldErrors = {}) => {
+    const renderFormWithError = async (errorMessage, fieldErrors = {}) => {
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
+        const turmaOptions = await getActiveTurmasOptions(req.body.class_code || '');
 
         const formData = {
             first_name: req.body.first_name || '',
@@ -924,7 +1416,8 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             zubon_size: req.body.zubon_size || '',
             obi_size: req.body.obi_size || '',
             photo: '/uploads/users/default.jpg',
-            responsible_id: responsibleId
+            responsible_id: responsibleId,
+            class_code: req.body.class_code || ''
         };
 
         const vm = {
@@ -937,6 +1430,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
                 ...option,
                 selected: option.value === formData.actual_belt
             })),
+            turmaOptions,
             mensagem: errorMessage,
             tipoMensagem: 'erro',
             camposErro: fieldErrors
@@ -948,8 +1442,22 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
     try {
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
         const isDependent = !!responsibleId;
+        const classCode = String(req.body.class_code || '').trim().toUpperCase();
         let titular = null;
         const beltDegreeValidation = validateBeltAndDegree(req.body.actual_belt, req.body.actual_degree);
+        const turmaSelecionada = classCode
+            ? await Turma.findOne({ where: { class_code: classCode, active: 'Y' } })
+            : null;
+
+        if (!turmaSelecionada) {
+            if (req.file) {
+                const tempFilePath = path.join(uploadsDir, req.file.filename);
+                if (fs.existsSync(tempFilePath)) {
+                    await fs.promises.unlink(tempFilePath);
+                }
+            }
+            return renderFormWithError('Selecione uma turma valida para continuar.', { class_code: 'Selecione uma turma valida.' });
+        }
 
         // Validar titular se for dependente
         if (isDependent) {
@@ -961,7 +1469,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
                         await fs.promises.unlink(tempFilePath);
                     }
                 }
-                return renderFormWithError('Conta titular inválida ou não encontrada.');
+                return renderFormWithError('Conta titular invalida ou nao encontrada.');
             }
         }
 
@@ -1024,7 +1532,21 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             wagi_size: req.body.wagi_size,
             zubon_size: req.body.zubon_size,
             obi_size: req.body.obi_size,
-            responsible_id: responsibleId || null
+            responsible_id: responsibleId || null,
+            class_code: classCode
+        });
+
+        await TurmaAluno.findOrCreate({
+            where: {
+                class_code: classCode,
+                user_code: usuario.user_code
+            },
+            defaults: {
+                class_code: classCode,
+                user_code: usuario.user_code,
+                enrolled_by: req.session.usuario ? req.session.usuario.user_code : usuario.user_code,
+                active: 'Y'
+            }
         });
 
         if (req.file) {
@@ -1090,7 +1612,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             }
         }
 
-        renderFormWithError(mensagemGeral, fieldErrors);
+        return renderFormWithError(mensagemGeral, fieldErrors);
     }
 });
 
@@ -1295,6 +1817,9 @@ app.get('/presenca', async (req, res) => {
     try {
         const hasProfessorPrivileges = hasProfessorAccess(req.session.usuario);
         let listaCompleta = [];
+        let turmasSolicitacao = [];
+        let requiresTurmaSelection = false;
+        let defaultClassCode = '';
 
         if (hasProfessorPrivileges) {
             const pendentes = await Presenca.findAll({
@@ -1338,6 +1863,12 @@ app.get('/presenca', async (req, res) => {
                 return res.redirect('/auth/login');
             }
 
+            turmasSolicitacao = await getActiveTurmasForUser(userCode);
+            requiresTurmaSelection = turmasSolicitacao.length > 1;
+            if (turmasSolicitacao.length === 1) {
+                defaultClassCode = turmasSolicitacao[0].class_code;
+            }
+
             const todasPresencas = await Presenca.findAll({
                 where: { user_code: userCode },
                 order: [['request_date', 'DESC']]
@@ -1365,6 +1896,9 @@ app.get('/presenca', async (req, res) => {
             presencas: presencasPaginadas,
             todasPresencasJSON: hasProfessorPrivileges ? '[]' : JSON.stringify(listaCompleta),
             hasProfessorPrivileges,
+            turmasSolicitacao,
+            requiresTurmaSelection,
+            defaultClassCode,
             pagination: {
                 currentPage,
                 totalPages,
@@ -1383,6 +1917,9 @@ app.get('/presenca', async (req, res) => {
             presencas: [],
             todasPresencasJSON: '[]',
             hasProfessorPrivileges,
+            turmasSolicitacao: [],
+            requiresTurmaSelection: false,
+            defaultClassCode: '',
             pagination: {
                 currentPage: 1, totalPages: 1, totalItems: 0,
                 hasPrev: false, hasNext: false, prevPage: 1, nextPage: 1,
@@ -1463,6 +2000,21 @@ app.post('/presenca/solicitar', async (req, res) => {
             return res.json({ ok: false, mensagem: 'Não autenticado.' });
         }
 
+        const turmasAluno = await getActiveTurmasForUser(userCode);
+        if (turmasAluno.length === 0) {
+            return res.json({ ok: false, mensagem: 'Voce nao possui turma ativa para solicitar presenca.' });
+        }
+
+        let selectedClassCode = String(req.body.classCode || '').trim().toUpperCase();
+        if (turmasAluno.length === 1) {
+            selectedClassCode = turmasAluno[0].class_code;
+        }
+
+        const turmaPermitida = turmasAluno.some((turma) => turma.class_code === selectedClassCode);
+        if (!selectedClassCode || !turmaPermitida) {
+            return res.json({ ok: false, mensagem: 'Selecione uma turma valida para a solicitacao.' });
+        }
+
         const { dates, classTypes } = req.body;
 
         if (!Array.isArray(dates) || dates.length === 0) {
@@ -1519,7 +2071,8 @@ app.post('/presenca/solicitar', async (req, res) => {
                 request_date: date.toDate(),
                 user_code: userCode,
                 status: 'P',
-                class_type
+                class_type,
+                class_code: selectedClassCode
             });
 
             const vm = buildPresencaViewModel(presenca);
@@ -1996,6 +2549,25 @@ async function ensureUsuarioEmailNotUnique() {
     }
 }
 
+async function ensureUsuarioClassCodeColumn() {
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDescription = await queryInterface.describeTable('tb_usuarios');
+
+    if (!tableDescription.class_code) {
+        await queryInterface.addColumn('tb_usuarios', 'class_code', {
+            type: Sequelize.STRING(5),
+            allowNull: true
+        });
+        console.log('Coluna class_code adicionada em tb_usuarios.');
+    }
+}
+
+async function ensureTurmaSchema() {
+    await Turma.sync();
+    await TurmaAluno.sync();
+    await ensureUsuarioClassCodeColumn();
+}
+
 
 
 
@@ -2014,6 +2586,9 @@ app.set('views', path.join(__dirname, 'views'));
 // execução do servidor
 const PORT = process.env.ENV_PORT || 3000;
 ensureUsuarioEmailNotUnique()
+    .then(() => {
+        return ensureTurmaSchema();
+    })
     .then(() => {
         app.listen(PORT, function () {
             console.clear();
