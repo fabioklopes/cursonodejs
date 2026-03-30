@@ -94,6 +94,16 @@ app.use(async (req, res, next) => {
     next();
 });
 
+app.use((req, res, next) => {
+    res.locals.birthdayLoginModal = req.session.birthdayLoginModal || null;
+
+    if (req.session.birthdayLoginModal) {
+        delete req.session.birthdayLoginModal;
+    }
+
+    next();
+});
+
 // Rotas isentas de verificação de login
 function isPublicRoute(pathname) {
     return pathname === '/auth/login'
@@ -575,6 +585,24 @@ const BELT_MAP = BELT_OPTIONS.reduce((acc, option) => {
     return acc;
 }, {});
 
+const BIRTHDAY_MESSAGE_FILE_CANDIDATES = [
+    path.join(__dirname, 'utils', 'frases_aniversariantes.txt'),
+    path.join(__dirname, 'utils', 'frases_aniversario.txt')
+];
+
+const DEFAULT_BIRTHDAY_LEAD_MESSAGES = [
+    'Seu aniversário está chegando. Que estes próximos dias sejam leves e especiais.',
+    'Mais um passo para celebrar sua jornada. Que seu novo ciclo venha com paz e boas conquistas.',
+    'A contagem regressiva começou. Que seu coração se encha de alegria a cada novo dia.',
+    'Falta pouco para o seu aniversário. Que este tempo seja de gratidão e bons encontros.',
+    'Amanhã é o seu grande dia. Que você receba carinho, paz e muitas alegrias.'
+];
+
+const BIRTHDAY_CELEBRATION_MODAL = {
+    title: '🎈 FELIZ ANIVERSÁRIO! 🎈',
+    bodyHtml: 'Que você tenha muita saúde, paz, prosperidade e que todos os seus desejos se transformem em vitórias e conquistas.<br><br>✨<br><b>Curta seu dia!</b>'
+};
+
 const MONTH_NAMES_PT_BR = [
     'Janeiro',
     'Fevereiro',
@@ -589,6 +617,32 @@ const MONTH_NAMES_PT_BR = [
     'Novembro',
     'Dezembro'
 ];
+
+function loadBirthdayLeadMessages() {
+    for (const filePath of BIRTHDAY_MESSAGE_FILE_CANDIDATES) {
+        try {
+            if (!fs.existsSync(filePath)) {
+                continue;
+            }
+
+            const fileContent = fs.readFileSync(filePath, 'utf8');
+            const messages = fileContent
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .filter(Boolean);
+
+            if (messages.length > 0) {
+                return messages;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar mensagens de aniversario:', error.message);
+        }
+    }
+
+    return DEFAULT_BIRTHDAY_LEAD_MESSAGES;
+}
+
+const BIRTHDAY_LEAD_MESSAGES = loadBirthdayLeadMessages();
 
 function getMaxDegreeForBelt(actualBelt) {
     return actualBelt === BLACK_BELT_VALUE ? 6 : 4;
@@ -775,6 +829,92 @@ function buildBirthdayWidgetData(users = [], todayDate = new Date()) {
         currentMonth: todayMonthIndex,
         currentMonthLabel: MONTH_NAMES_PT_BR[todayMonthIndex],
         birthdays
+    };
+}
+
+function buildBirthdayOccurrenceDate(parts, referenceDate = new Date()) {
+    if (!parts) {
+        return null;
+    }
+
+    const referenceYear = referenceDate.getFullYear();
+    const candidate = new Date(referenceYear, parts.month - 1, parts.day);
+
+    if (
+        referenceDate.getMonth() > candidate.getMonth()
+        || (referenceDate.getMonth() === candidate.getMonth() && referenceDate.getDate() > candidate.getDate())
+    ) {
+        return new Date(referenceYear + 1, parts.month - 1, parts.day);
+    }
+
+    return candidate;
+}
+
+function getDiffInDays(startDate, endDate) {
+    const start = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate());
+    const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+    const diffMs = end.getTime() - start.getTime();
+    return Math.round(diffMs / 86400000);
+}
+
+function getRandomBirthdayLeadMessage() {
+    const messages = Array.isArray(BIRTHDAY_LEAD_MESSAGES) && BIRTHDAY_LEAD_MESSAGES.length > 0
+        ? BIRTHDAY_LEAD_MESSAGES
+        : DEFAULT_BIRTHDAY_LEAD_MESSAGES;
+
+    if (messages.length === 0) {
+        return 'Seu aniversário está chegando!';
+    }
+
+    const randomIndex = Math.floor(Math.random() * messages.length);
+    return messages[randomIndex];
+}
+
+function isBirthdayMessagesDisabledForYear(usuario, referenceDate = new Date()) {
+    if (!usuario || !usuario.birthday_messages_disabled) {
+        return false;
+    }
+
+    const currentYear = referenceDate.getFullYear();
+    const disabledYear = parseInt(usuario.birthday_messages_disabled_year, 10);
+    return Number.isInteger(disabledYear) && disabledYear === currentYear;
+}
+
+function buildBirthdayLoginModalData(usuario, todayDate = new Date()) {
+    if (!usuario || isBirthdayMessagesDisabledForYear(usuario, todayDate)) {
+        return null;
+    }
+
+    const birthParts = parseBirthDateParts(usuario.birth_date);
+    if (!birthParts) {
+        return null;
+    }
+
+    const nextBirthday = buildBirthdayOccurrenceDate(birthParts, todayDate);
+    if (!nextBirthday) {
+        return null;
+    }
+
+    const daysUntilBirthday = getDiffInDays(todayDate, nextBirthday);
+
+    if (daysUntilBirthday === 0) {
+        return {
+            title: BIRTHDAY_CELEBRATION_MODAL.title,
+            bodyHtml: BIRTHDAY_CELEBRATION_MODAL.bodyHtml,
+            isBirthday: true,
+            checkboxLabel: 'não exibir mais as mensagens de aniversário'
+        };
+    }
+
+    if (daysUntilBirthday < 1 || daysUntilBirthday > 5) {
+        return null;
+    }
+
+    return {
+        title: 'Seu aniversário está chegando!',
+        bodyHtml: getRandomBirthdayLeadMessage(),
+        isBirthday: false,
+        checkboxLabel: 'não exibir mais as mensagens de aniversário'
     };
 }
 
@@ -2262,6 +2402,29 @@ app.post('/presenca/cancelar/:id', async (req, res) => {
     }
 });
 
+app.post('/aniversario/mensagens/desativar', async (req, res) => {
+    try {
+        const usuarioSessao = req.session.usuario;
+        if (!usuarioSessao || !usuarioSessao.id) {
+            return res.status(401).json({ ok: false, mensagem: 'Não autenticado.' });
+        }
+
+        const usuario = await Usuario.findByPk(usuarioSessao.id);
+        if (!usuario) {
+            return res.status(404).json({ ok: false, mensagem: 'Usuário não encontrado.' });
+        }
+
+        usuario.birthday_messages_disabled = true;
+        usuario.birthday_messages_disabled_year = new Date().getFullYear();
+        await usuario.save();
+        delete req.session.birthdayLoginModal;
+
+        return res.json({ ok: true });
+    } catch (err) {
+        return res.status(500).json({ ok: false, mensagem: 'Erro ao atualizar preferência: ' + err.message });
+    }
+});
+
 
 // GRUPO DE ROTAS DE AUTENTICAÇÃO / RESET PASSWORD
 app.get('/auth/login', function (req, res) {
@@ -2348,6 +2511,8 @@ app.post('/auth/verify', function (req, res) {
             email: usuario.email,
             role: usuario.role
         };
+
+        req.session.birthdayLoginModal = buildBirthdayLoginModalData(usuario);
 
         const redirect = requestedRedirect === '/aluno' || requestedRedirect === '/dashboardaluno'
             ? getDefaultRedirectByRole(usuario.role)
@@ -2707,10 +2872,48 @@ async function ensureUsuarioClassCodeColumn() {
     }
 }
 
+async function ensureUsuarioBirthdayMessagesDisabledColumn() {
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDescription = await queryInterface.describeTable('tb_usuarios');
+
+    if (!tableDescription.birthday_messages_disabled) {
+        await queryInterface.addColumn('tb_usuarios', 'birthday_messages_disabled', {
+            type: Sequelize.BOOLEAN,
+            allowNull: false,
+            defaultValue: false
+        });
+        console.log('Coluna birthday_messages_disabled adicionada em tb_usuarios.');
+    }
+}
+
+async function ensureUsuarioBirthdayMessagesDisabledYearColumn() {
+    const queryInterface = sequelize.getQueryInterface();
+    const tableDescription = await queryInterface.describeTable('tb_usuarios');
+
+    if (!tableDescription.birthday_messages_disabled_year) {
+        await queryInterface.addColumn('tb_usuarios', 'birthday_messages_disabled_year', {
+            type: Sequelize.INTEGER,
+            allowNull: true
+        });
+        console.log('Coluna birthday_messages_disabled_year adicionada em tb_usuarios.');
+    }
+
+    await queryInterface.bulkUpdate(
+        'tb_usuarios',
+        { birthday_messages_disabled_year: new Date().getFullYear() },
+        {
+            birthday_messages_disabled: true,
+            birthday_messages_disabled_year: null
+        }
+    );
+}
+
 async function ensureTurmaSchema() {
     await Turma.sync();
     await TurmaAluno.sync();
     await ensureUsuarioClassCodeColumn();
+    await ensureUsuarioBirthdayMessagesDisabledColumn();
+    await ensureUsuarioBirthdayMessagesDisabledYearColumn();
 }
 
 

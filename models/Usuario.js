@@ -115,6 +115,15 @@ const Usuario = db.sequelize.define('tb_usuarios', {
         type: db.Sequelize.STRING(5),
         allowNull: true,
     },
+    birthday_messages_disabled: {
+        type: db.Sequelize.BOOLEAN,
+        allowNull: false,
+        defaultValue: false
+    },
+    birthday_messages_disabled_year: {
+        type: db.Sequelize.INTEGER,
+        allowNull: true
+    },
     user_status: {
         type: db.Sequelize.ENUM('P', 'A', 'C'), // Pending, Ativo ou Cancelled
         allowNull: false,

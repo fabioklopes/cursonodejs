@@ -153,9 +153,75 @@
                 {{{body}}}
             </div>
         </div>
+
+        {{#if birthdayLoginModal}}
+        <div class="modal fade" id="birthdayLoginModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{birthdayLoginModal.title}}</h5>
+                    </div>
+                    <div class="modal-body text-center">
+                        {{{birthdayLoginModal.bodyHtml}}}
+                    </div>
+                    <div class="modal-footer justify-content-between flex-column flex-sm-row gap-2">
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="checkbox" value="1" id="birthdayDisableMessagesCheckbox">
+                            <label class="form-check-label" for="birthdayDisableMessagesCheckbox">
+                                {{birthdayLoginModal.checkboxLabel}}
+                            </label>
+                        </div>
+                        <button type="button" class="btn btn-primary px-4" id="birthdayLoginModalCloseButton">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{/if}}
+
         <script src="/js/popper.min.js" defer></script>
         <script src="/js/bootstrap.min.js" defer></script>
         <script src="/js/auto-dismiss.js" defer></script>
+        {{#if birthdayLoginModal}}
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const modalElement = document.getElementById('birthdayLoginModal');
+                if (!modalElement || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                    return;
+                }
+
+                const modalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
+                const closeButton = document.getElementById('birthdayLoginModalCloseButton');
+                const checkbox = document.getElementById('birthdayDisableMessagesCheckbox');
+
+                modalInstance.show();
+
+                if (!closeButton) {
+                    return;
+                }
+
+                closeButton.addEventListener('click', async function() {
+                    closeButton.disabled = true;
+
+                    try {
+                        if (checkbox && checkbox.checked) {
+                            await fetch('/aniversario/mensagens/desativar', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({ disable: true })
+                            });
+                        }
+                    } catch (error) {
+                        console.error('Erro ao salvar preferência de aniversário:', error);
+                    } finally {
+                        modalInstance.hide();
+                        closeButton.disabled = false;
+                    }
+                });
+            });
+        </script>
+        {{/if}}
     </body>
 
 </html>
