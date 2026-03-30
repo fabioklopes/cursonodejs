@@ -438,6 +438,19 @@ function buildForgotPasswordMessages(options) {
     return messages;
 }
 
+function buildForgotPasswordAcknowledgementMessage() {
+    return [
+        {
+            variant: 'primary',
+            paragraphs: [
+                'Se o e-mail informado existir no nosso banco de dados, uma mensagem será enviada com um link para a redefinição da senha.',
+                'O prazo para utilização do link é de 10 minutos.',
+                'Após o uso ou após o período, o link será inutilizado e será necessário fazer uma nova solicitação.'
+            ]
+        }
+    ];
+}
+
 function buildResetPasswordMessages(options) {
     const messages = [];
 
@@ -2578,60 +2591,39 @@ app.post('/auth/forgot-password', async (req, res) => {
         const usuarios = await findUsuariosByEmail(email);
         const emailFound = usuarios.length > 0;
 
-        if (!emailFound) {
-            return renderForgotPasswordPage(res, {
-                email,
-                statusMessages: buildForgotPasswordMessages({
-                    emailFound: false,
-                    deliveryStatus: 'not_found'
-                })
-            });
-        }
+        if (emailFound) {
+            const token = crypto.randomBytes(32).toString('hex');
+            const tokenHash = await argon2.hash(token);
+            const reset_token_expires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+            const usuarioIds = usuarios.map((usuario) => usuario.id);
 
-        const token = crypto.randomBytes(32).toString('hex');
-        const tokenHash = await argon2.hash(token);
-        const reset_token_expires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
-        const usuarioIds = usuarios.map((usuario) => usuario.id);
-
-        await Usuario.update(
-            { reset_token_hash: tokenHash, reset_token_expires },
-            {
-                where: {
-                    id: { [Op.in]: usuarioIds }
+            await Usuario.update(
+                { reset_token_hash: tokenHash, reset_token_expires },
+                {
+                    where: {
+                        id: { [Op.in]: usuarioIds }
+                    }
                 }
+            );
+
+            try {
+                await sendResetPasswordEmail(req, email, token, usuarios.length);
+            } catch (mailError) {
+                console.error('Falha ao enviar e-mail de redefinição:', mailError.message);
             }
-        );
-
-        let deliveryStatus = 'failed';
-        let previewResetLink = '';
-
-        try {
-            const deliveryResult = await sendResetPasswordEmail(req, email, token, usuarios.length);
-            deliveryStatus = deliveryResult.deliveryStatus;
-            previewResetLink = deliveryResult.resetLink || '';
-        } catch (mailError) {
-            console.error('Falha ao enviar e-mail de redefinição:', mailError.message);
         }
 
         return renderForgotPasswordPage(res, {
-            email,
-            statusMessages: buildForgotPasswordMessages({
-                emailFound: true,
-                deliveryStatus,
-                hasDuplicateEmail: usuarios.length > 1
-            }),
-            previewResetLink,
-            previewResetMessage: deliveryStatus === 'preview'
-                ? 'Link gerado para teste local. Em produção, configure o SMTP para que o envio seja feito por e-mail.'
-                : ''
+            requestMode: false,
+            email: '',
+            statusMessages: buildForgotPasswordAcknowledgementMessage()
         });
     } catch (error) {
         console.error('Erro ao processar solicitação de redefinição:', error);
         return renderForgotPasswordPage(res, {
-            email,
-            statusMessages: buildForgotPasswordMessages({
-                errorMessage: 'Ocorreu um erro ao processar sua solicitação. Tente novamente em instantes.'
-            })
+            requestMode: false,
+            email: '',
+            statusMessages: buildForgotPasswordAcknowledgementMessage()
         });
     }
 });
