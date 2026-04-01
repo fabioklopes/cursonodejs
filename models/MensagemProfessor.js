@@ -3,7 +3,7 @@ const db = require('./db');
 
 // tb_mensagens_professores
 const MensagemProfessor = db.sequelize.define('tb_mensagens_professores', {
-    title: db.Sequelize.STRING(25),
+    title: db.Sequelize.STRING(50),
     content: db.Sequelize.STRING(255),
     class: db.Sequelize.STRING(5),
     created_by: {
@@ -37,6 +37,6 @@ MensagemProfessor.associate = (models) => {
  * - force: true - Apaga a tabela existente e cria uma nova (perda de dados).
  * - alter: true - Altera a tabela para corresponder ao modelo, sem apagar dados (recomendado para produção).
 */
-// MensagemProfessor.sync({ force: true });
+MensagemProfessor.sync({ aler: true });
 
 module.exports = MensagemProfessor;

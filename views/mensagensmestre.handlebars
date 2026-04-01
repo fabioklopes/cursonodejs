@@ -5,317 +5,517 @@
 {{/if}}
 
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <div>
-        <h1 class="mb-0">Mensagens do Mestre</h1>
-    </div>
-    <a href="/dashboard" class="btn btn-outline-secondary">
-        <i class="fa-solid fa-arrow-left"></i> Voltar
-    </a>
+    <div><h1 class="mb-0">Central de Avisos</h1></div>
 </div>
 
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-3" id="studentMassCardsRow">
     <div class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100">
+        <button type="button" class="card border-0 shadow-sm h-100 w-100 text-start student-mass-select-card" data-category="novas">
             <div class="card-body">
-                <div class="small text-body-secondary text-uppercase">Ativas</div>
-                <div class="display-6 fw-semibold" id="studentMassTotalCountValue">{{totalMensagens}}</div>
+                <div class="small text-body-secondary text-uppercase">Novas</div>
+                <div class="d-flex align-items-center justify-content-between gap-2 mt-1">
+                    <div class="display-6 fw-semibold text-primary" id="studentMassNovasCount">0</div>
+                    <i class="fa-solid fa-envelope fs-3 text-primary"></i>
+                </div>
             </div>
-        </div>
+        </button>
     </div>
+
     <div class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100">
-            <div class="card-body">
-                <div class="small text-body-secondary text-uppercase">Não lidas</div>
-                <div class="display-6 fw-semibold text-danger" id="studentMassUnreadCountValue">{{totalNaoLidas}}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-md-4">
-        <div class="card border-0 shadow-sm h-100">
+        <button type="button" class="card border-0 shadow-sm h-100 w-100 text-start student-mass-select-card" data-category="lidas">
             <div class="card-body">
                 <div class="small text-body-secondary text-uppercase">Lidas</div>
-                <div class="display-6 fw-semibold text-secondary" id="studentMassReadCountValue">{{totalLidas}}</div>
+                <div class="d-flex align-items-center justify-content-between gap-2 mt-1">
+                    <div class="display-6 fw-semibold text-info" id="studentMassLidasCount">0</div>
+                    <i class="fa-regular fa-envelope-open fs-3 text-info"></i>
+                </div>
+            </div>
+        </button>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <button type="button" class="card border-0 shadow-sm h-100 w-100 text-start student-mass-select-card" data-category="antigas">
+            <div class="card-body">
+                <div class="small text-body-secondary text-uppercase">Antigas</div>
+                <div class="d-flex align-items-center justify-content-between gap-2 mt-1">
+                    <div class="display-6 fw-semibold text-secondary" id="studentMassAntigasCount">0</div>
+                    <i class="fa-solid fa-clock-rotate-left fs-3 text-secondary"></i>
+                </div>
+            </div>
+        </button>
+    </div>
+</div>
+
+
+
+<div id="studentMassMessagesData" class="d-none">
+    {{#each mensagens}}
+    <div
+        class="js-student-message-data"
+        data-id="{{id}}"
+        data-title="{{title}}"
+        data-content="{{content}}"
+        data-class-display="{{class_display}}"
+        data-created-at-label="{{createdAtLabel}}"
+        data-created-at-value="{{createdAtValue}}"
+        data-expires-at-label="{{expiresAtLabel}}"
+        data-is-read="{{#if isRead}}true{{else}}false{{/if}}"
+        data-read-at-label="{{readAtLabel}}"
+        data-status-label="{{statusLabel}}"
+        data-status-badge="{{statusBadge}}"
+    ></div>
+    {{/each}}
+</div>
+
+<div class="modal fade" id="studentMassListModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="studentMassListModalTitle">Mensagens</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="studentMassListEmpty" class="text-body-secondary d-none">Nenhuma mensagem nesta categoria.</div>
+                <div id="studentMassList" class="student-mass-list"></div>
             </div>
         </div>
     </div>
 </div>
 
-<div class="accordion {{#unless mensagens.length}}d-none{{/unless}}" id="mensagensMestreAccordion">
-    {{#each mensagens}}
-    <div class="accordion-item border-0 shadow-sm mb-3 student-mass-message-item {{#unless isRead}}student-mass-message-item-unread{{/unless}}" data-message-id="{{id}}" data-is-read="{{#if isRead}}true{{else}}false{{/if}}">
-        <h2 class="accordion-header">
-            <button class="accordion-button collapsed gap-3" type="button" data-bs-toggle="collapse" data-bs-target="#mensagemMestreCollapse{{id}}" aria-expanded="false" aria-controls="mensagemMestreCollapse{{id}}">
-                <span class="d-flex flex-column flex-lg-row align-items-lg-center gap-2 flex-grow-1 text-start">
-                    <span class="fw-semibold">{{title}}</span>
-                    <span class="d-flex flex-wrap gap-2 align-items-center">
-                        <span class="badge text-bg-{{statusBadge}}">{{statusLabel}}</span>
-                        <span class="badge text-bg-{{readStateBadge}} js-read-state-badge">{{readStateLabel}}</span>
-                    </span>
-                </span>
-            </button>
-        </h2>
-        <div id="mensagemMestreCollapse{{id}}" class="accordion-collapse collapse" data-bs-parent="#mensagensMestreAccordion">
-            <div class="accordion-body">
+<div class="modal fade" id="studentMassDetailModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="studentMassDetailTitle">Mensagem</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <span class="badge" id="studentMassDetailStatusBadge"></span>
+                    <span class="badge" id="studentMassDetailReadBadge"></span>
+                </div>
+
                 <div class="mb-3">
                     <div class="small text-body-secondary mb-1">Mensagem</div>
-                    <div class="fs-6">{{content}}</div>
+                    <div class="fs-6" id="studentMassDetailContent"></div>
                 </div>
 
                 <div class="row g-3 small text-body-secondary mb-3">
                     <div class="col-12 col-md-6">
-                        <div><strong>Turma:</strong> {{class_display}}</div>
-                        <div><strong>Data de criação:</strong> {{createdAtLabel}}</div>
+                        <div><strong>Turma:</strong> <span id="studentMassDetailClass"></span></div>
+                        <div><strong>Data de criação:</strong> <span id="studentMassDetailCreatedAt"></span></div>
                     </div>
                     <div class="col-12 col-md-6">
-                        <div><strong>Expira em:</strong> {{expiresAtLabel}}</div>
-                        <div class="js-read-at-wrapper {{#unless isRead}}d-none{{/unless}}"><strong>Visualizada em:</strong> <span class="js-read-at-label">{{readAtLabel}}</span></div>
+                        <div><strong>Expira em:</strong> <span id="studentMassDetailExpiresAt"></span></div>
+                        <div id="studentMassDetailReadAtRow" class="d-none"><strong>Visualizada em:</strong> <span id="studentMassDetailReadAt"></span></div>
                     </div>
                 </div>
 
                 <div class="d-flex flex-column gap-2 justify-content-center">
-                    <button type="button" class="btn btn-outline-primary btn-sm js-mark-unread-button">
+                    <button type="button" class="btn btn-outline-primary btn-sm" id="studentMassDetailUnreadButton">
                         <i class="fa-solid fa-envelope"></i> Marcar como não lido
                     </button>
-                    <button type="button" class="btn btn-outline-secondary btn-sm js-hide-message-button">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="studentMassDetailHideButton">
                         <i class="fa-solid fa-eye-slash"></i> Remover da minha área de mensagens
                     </button>
                 </div>
             </div>
         </div>
     </div>
-    {{/each}}
 </div>
 
-<div class="card border-0 shadow-sm {{#if mensagens.length}}d-none{{/if}}" id="studentMassEmptyState">
-    <div class="card-body py-4 text-center text-body-secondary">
-        <i class="fa-solid fa-bell-slash fs-2 d-block mb-3"></i>
-        Nenhuma mensagem ativa do mestre para você neste momento.
-                                    if (emptyStateElement) {
-                                        emptyStateElement.classList.toggle('d-none', normalizedTotalCount > 0);
-                                    }
 <style>
-    .student-mass-message-item-unread {
-        border-left: 0.3rem solid var(--bs-primary);
+    .student-mass-select-card {
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
     }
 
-    .student-mass-message-item .accordion-button {
-        background: transparent;
-        box-shadow: none;
+    .student-mass-select-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
     }
 
-    .student-mass-message-item .accordion-button:not(.collapsed) {
-        color: inherit;
-        background-color: rgba(13, 110, 253, 0.04);
+    .student-mass-list {
+        max-height: 55vh;
+        overflow-y: auto;
+        display: grid;
+        gap: 0.75rem;
+    }
+
+    .student-mass-list-item {
+        display: block;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.5rem;
+        padding: 0.75rem;
+        background-color: var(--bs-body-bg);
+        text-align: left;
+        width: 100%;
+        max-width: 100%;
+        overflow: hidden;
+    }
+
+    .student-mass-list-title {
+        font-weight: 700;
+        display: block;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .student-mass-list-preview {
+        color: var(--bs-secondary-color);
+        display: block;
+        max-width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 </style>
 
 <script>
     (function() {
-        function initMensagensMestrePage() {
-            const totalElement = document.getElementById('studentMassTotalCountValue');
-            const unreadElement = document.getElementById('studentMassUnreadCountValue');
-            const readElement = document.getElementById('studentMassReadCountValue');
-            const accordionElement = document.getElementById('mensagensMestreAccordion');
-            const emptyStateElement = document.getElementById('studentMassEmptyState');
-            const items = Array.from(document.querySelectorAll('.student-mass-message-item'));
-            const pendingIds = new Set();
+        function parseMessageElements() {
+            const elements = Array.from(document.querySelectorAll('.js-student-message-data'));
+            return elements.map((el) => {
+                const createdAtRaw = el.getAttribute('data-created-at-value');
+                const createdAtDate = createdAtRaw ? new Date(createdAtRaw) : null;
 
-            if (items.length === 0 || typeof bootstrap === 'undefined') {
+                return {
+                    id: Number(el.getAttribute('data-id')),
+                    title: el.getAttribute('data-title') || '',
+                    content: el.getAttribute('data-content') || '',
+                    classDisplay: el.getAttribute('data-class-display') || '',
+                    createdAtLabel: el.getAttribute('data-created-at-label') || '',
+                    createdAtDate,
+                    expiresAtLabel: el.getAttribute('data-expires-at-label') || '',
+                    isRead: el.getAttribute('data-is-read') === 'true',
+                    readAtLabel: el.getAttribute('data-read-at-label') || '',
+                    statusLabel: el.getAttribute('data-status-label') || 'Ativo',
+                    statusBadge: el.getAttribute('data-status-badge') || 'primary'
+                };
+            }).filter((msg) => Number.isInteger(msg.id) && msg.id > 0);
+        }
+
+        function isOldMessage(message) {
+            return message.statusLabel === 'Expirado';
+        }
+
+        function getCategoryMessages(messages, category) {
+            if (category === 'novas') {
+                return messages.filter((msg) => !msg.isRead && !isOldMessage(msg));
+            }
+
+            if (category === 'lidas') {
+                return messages.filter((msg) => msg.isRead && !isOldMessage(msg));
+            }
+
+            if (category === 'antigas') {
+                return messages.filter((msg) => isOldMessage(msg));
+            }
+
+            return [];
+        }
+
+        function updateStudentMassMessageBellSafe(unreadCount) {
+            if (typeof updateStudentMassMessageBell === 'function') {
+                updateStudentMassMessageBell(unreadCount);
+            }
+        }
+
+        async function postMarkAsRead(messageId) {
+            const response = await fetch(`/mensagens/mestre/${messageId}/lida`, { method: 'POST' });
+            if (!response.ok) throw new Error('Falha ao registrar leitura.');
+            return response.json();
+        }
+
+        async function postMarkAsUnread(messageId) {
+            const response = await fetch(`/mensagens/mestre/${messageId}/naoLida`, { method: 'POST' });
+            if (!response.ok) throw new Error('Falha ao marcar como não lida.');
+            return response.json();
+        }
+
+        async function postHideMessage(messageId) {
+            const response = await fetch('/mensagens/ocultar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_id: messageId })
+            });
+
+            if (!response.ok) throw new Error('Falha ao ocultar mensagem.');
+            return response.json();
+        }
+
+        function initMensagensMestrePage() {
+            if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
                 return;
             }
 
-            function updateCounters(totalCount, unreadCount) {
-                const normalizedTotalCount = Math.max(Number(totalCount) || 0, 0);
-                const normalizedUnreadCount = Math.max(Number(unreadCount) || 0, 0);
-                const readCount = Math.max(normalizedTotalCount - normalizedUnreadCount, 0);
+            const cards = Array.from(document.querySelectorAll('.student-mass-select-card'));
+            const emptyStateElement = document.getElementById('studentMassEmptyState');
+            const listModalElement = document.getElementById('studentMassListModal');
+            const detailModalElement = document.getElementById('studentMassDetailModal');
 
-                if (totalElement) totalElement.textContent = String(normalizedTotalCount);
-                if (unreadElement) unreadElement.textContent = String(normalizedUnreadCount);
-                if (readElement) readElement.textContent = String(readCount);
+            if (!listModalElement || !detailModalElement) {
+                return;
+            }
 
-                if (typeof updateStudentMassMessageBell === 'function') {
-                    updateStudentMassMessageBell(normalizedUnreadCount);
-                }
+            const listModal = bootstrap.Modal.getOrCreateInstance(listModalElement);
+            const detailModal = bootstrap.Modal.getOrCreateInstance(detailModalElement);
 
-                if (accordionElement) {
-                    accordionElement.classList.toggle('d-none', normalizedTotalCount === 0);
-                }
+            const listTitle = document.getElementById('studentMassListModalTitle');
+            const listContainer = document.getElementById('studentMassList');
+            const listEmpty = document.getElementById('studentMassListEmpty');
+
+            const countNovas = document.getElementById('studentMassNovasCount');
+            const countLidas = document.getElementById('studentMassLidasCount');
+            const countAntigas = document.getElementById('studentMassAntigasCount');
+
+            const detailTitle = document.getElementById('studentMassDetailTitle');
+            const detailStatusBadge = document.getElementById('studentMassDetailStatusBadge');
+            const detailReadBadge = document.getElementById('studentMassDetailReadBadge');
+            const detailContent = document.getElementById('studentMassDetailContent');
+            const detailClass = document.getElementById('studentMassDetailClass');
+            const detailCreatedAt = document.getElementById('studentMassDetailCreatedAt');
+            const detailExpiresAt = document.getElementById('studentMassDetailExpiresAt');
+            const detailReadAtRow = document.getElementById('studentMassDetailReadAtRow');
+            const detailReadAt = document.getElementById('studentMassDetailReadAt');
+            const detailUnreadButton = document.getElementById('studentMassDetailUnreadButton');
+            const detailHideButton = document.getElementById('studentMassDetailHideButton');
+
+            let messages = parseMessageElements();
+            let selectedCategory = 'novas';
+            let selectedMessageId = null;
+            let pendingMessageIds = new Set();
+
+            function findMessageById(messageId) {
+                return messages.find((msg) => msg.id === messageId) || null;
+            }
+
+            function getUnreadCount() {
+                return messages.filter((msg) => !msg.isRead).length;
+            }
+
+            function getCounts() {
+                return {
+                    novas: getCategoryMessages(messages, 'novas').length,
+                    lidas: getCategoryMessages(messages, 'lidas').length,
+                    antigas: getCategoryMessages(messages, 'antigas').length,
+                    total: messages.length,
+                    unread: getUnreadCount()
+                };
+            }
+
+            function updateCardsAndEmptyState() {
+                const counts = getCounts();
+
+                if (countNovas) countNovas.textContent = String(counts.novas);
+                if (countLidas) countLidas.textContent = String(counts.lidas);
+                if (countAntigas) countAntigas.textContent = String(counts.antigas);
 
                 if (emptyStateElement) {
-                    emptyStateElement.classList.toggle('d-none', normalizedTotalCount > 0);
+                    emptyStateElement.classList.toggle('d-none', counts.total > 0);
+                }
+
+                updateStudentMassMessageBellSafe(counts.unread);
+
+                const menuBadge = document.getElementById('studentMassMessageMenuBadge');
+                if (menuBadge) {
+                    menuBadge.textContent = String(counts.unread);
+                    menuBadge.classList.toggle('d-none', counts.unread === 0);
                 }
             }
 
-            async function markAsRead(item) {
-                const messageId = item.getAttribute('data-message-id');
-                if (!messageId || item.getAttribute('data-is-read') === 'true' || pendingIds.has(messageId)) {
+            function renderListModal(category) {
+                selectedCategory = category;
+                const items = getCategoryMessages(messages, category);
+                const titles = {
+                    novas: 'Mensagens Novas',
+                    lidas: 'Mensagens Lidas',
+                    antigas: 'Mensagens Antigas'
+                };
+
+                if (listTitle) {
+                    listTitle.textContent = titles[category] || 'Mensagens';
+                }
+
+                if (!listContainer) {
                     return;
                 }
 
-                pendingIds.add(messageId);
+                listContainer.innerHTML = '';
 
-                try {
-                    const response = await fetch(`/mensagens/mestre/${messageId}/lida`, {
-                        method: 'POST'
+                if (listEmpty) {
+                    listEmpty.classList.toggle('d-none', items.length > 0);
+                }
+
+                items.forEach((message) => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'student-mass-list-item';
+                    btn.setAttribute('data-message-id', String(message.id));
+
+                    const title = document.createElement('span');
+                    title.className = 'student-mass-list-title';
+                    title.textContent = message.title;
+
+                    const preview = document.createElement('span');
+                    preview.className = 'student-mass-list-preview';
+                    preview.textContent = message.content;
+
+                    btn.appendChild(title);
+                    btn.appendChild(preview);
+
+                    btn.addEventListener('click', async function() {
+                        selectedMessageId = message.id;
+                        const current = findMessageById(message.id);
+                        if (!current) {
+                            return;
+                        }
+
+                        if (!current.isRead && !pendingMessageIds.has(current.id)) {
+                            pendingMessageIds.add(current.id);
+                            try {
+                                const payload = await postMarkAsRead(current.id);
+                                current.isRead = true;
+                                current.readAtLabel = payload.readAtLabel || current.readAtLabel;
+                            } catch (error) {
+                                console.error('Erro ao marcar leitura ao abrir detalhe:', error);
+                            } finally {
+                                pendingMessageIds.delete(current.id);
+                            }
+                        }
+
+                        renderDetailModal(current);
+                        updateCardsAndEmptyState();
+                        renderListModal(selectedCategory);
+                        detailModal.show();
                     });
 
-                    if (!response.ok) {
-                        throw new Error('Falha ao registrar leitura da mensagem.');
-                    }
-
-                    const payload = await response.json();
-                    item.setAttribute('data-is-read', 'true');
-                    item.classList.remove('student-mass-message-item-unread');
-
-                    const readStateBadge = item.querySelector('.js-read-state-badge');
-                    if (readStateBadge) {
-                        readStateBadge.textContent = 'Lida';
-                        readStateBadge.className = 'badge text-bg-secondary js-read-state-badge';
-                    }
-
-                    const readAtWrapper = item.querySelector('.js-read-at-wrapper');
-                    const readAtLabel = item.querySelector('.js-read-at-label');
-
-                    if (readAtWrapper) {
-                        readAtWrapper.classList.remove('d-none');
-                    }
-
-                    if (readAtLabel && payload.readAtLabel) {
-                        readAtLabel.textContent = payload.readAtLabel;
-                    }
-
-                    if (typeof payload.unreadCount === 'number') {
-                        const currentTotalCount = Number(totalElement ? totalElement.textContent : items.length) || items.length;
-                        updateCounters(currentTotalCount, payload.unreadCount);
-                    }
-                } catch (error) {
-                    console.error('Erro ao marcar mensagem como lida:', error);
-                } finally {
-                    pendingIds.delete(messageId);
-                }
-            }
-
-            async function markAsUnread(item, button) {
-                const messageId = item.getAttribute('data-message-id');
-                if (!messageId || item.getAttribute('data-is-read') === 'false' || pendingIds.has(messageId)) {
-                    return;
-                }
-
-                pendingIds.add(messageId);
-                if (button) {
-                    button.disabled = true;
-                }
-
-                try {
-                    const response = await fetch(`/mensagens/mestre/${messageId}/naoLida`, {
-                        method: 'POST'
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Falha ao marcar mensagem como não lida.');
-                    }
-
-                    const payload = await response.json();
-                    item.setAttribute('data-is-read', 'false');
-                    item.classList.add('student-mass-message-item-unread');
-
-                    const readStateBadge = item.querySelector('.js-read-state-badge');
-                    if (readStateBadge) {
-                        readStateBadge.textContent = 'Nova';
-                        readStateBadge.className = 'badge text-bg-info js-read-state-badge';
-                    }
-
-                    const readAtWrapper = item.querySelector('.js-read-at-wrapper');
-                    if (readAtWrapper) {
-                        readAtWrapper.classList.add('d-none');
-                    }
-
-                    if (typeof payload.unreadCount === 'number') {
-                        const currentTotalCount = Number(totalElement ? totalElement.textContent : items.length) || items.length;
-                        updateCounters(currentTotalCount, payload.unreadCount);
-                    }
-                } catch (error) {
-                    console.error('Erro ao marcar mensagem como não lida:', error);
-                    if (button) {
-                        button.disabled = false;
-                    }
-                } finally {
-                    pendingIds.delete(messageId);
-                }
-            }
-
-            async function hideMessage(item, button) {
-                const messageId = item.getAttribute('data-message-id');
-                if (!messageId || pendingIds.has(messageId)) {
-                    return;
-                }
-
-                pendingIds.add(messageId);
-                if (button) {
-                    button.disabled = true;
-                }
-
-                try {
-                    const response = await fetch('/mensagens/ocultar', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            message_id: messageId
-                        })
-                    });
-
-                    if (!response.ok) {
-                        throw new Error('Falha ao ocultar a mensagem.');
-                    }
-
-                    const payload = await response.json();
-                    item.remove();
-
-                    const totalCount = typeof payload.totalCount === 'number'
-                        ? payload.totalCount
-                        : Math.max((Number(totalElement ? totalElement.textContent : 0) || 0) - 1, 0);
-                    const unreadCount = typeof payload.unreadCount === 'number'
-                        ? payload.unreadCount
-                        : Math.max(Number(unreadElement ? unreadElement.textContent : 0) || 0, 0);
-
-                    updateCounters(totalCount, unreadCount);
-                } catch (error) {
-                    console.error('Erro ao ocultar mensagem do mestre:', error);
-                    if (button) {
-                        button.disabled = false;
-                    }
-                } finally {
-                    pendingIds.delete(messageId);
-                }
-            }
-
-            items.forEach((item) => {
-                const collapseElement = item.querySelector('.accordion-collapse');
-                const unreadButton = item.querySelector('.js-mark-unread-button');
-                const hideButton = item.querySelector('.js-hide-message-button');
-
-                if (!collapseElement) {
-                    return;
-                }
-
-                collapseElement.addEventListener('show.bs.collapse', function() {
-                    markAsRead(item);
+                    listContainer.appendChild(btn);
                 });
 
-                if (unreadButton) {
-                    unreadButton.addEventListener('click', function() {
-                        markAsUnread(item, unreadButton);
-                    });
+                listModal.show();
+            }
+
+            function renderDetailModal(message) {
+                if (!message) {
+                    return;
                 }
 
-                if (hideButton) {
-                    hideButton.addEventListener('click', function() {
-                        hideMessage(item, hideButton);
-                    });
+                if (detailTitle) detailTitle.textContent = message.title;
+                if (detailContent) detailContent.textContent = message.content;
+                if (detailClass) detailClass.textContent = message.classDisplay;
+                if (detailCreatedAt) detailCreatedAt.textContent = message.createdAtLabel;
+                if (detailExpiresAt) detailExpiresAt.textContent = message.expiresAtLabel;
+
+                if (detailStatusBadge) {
+                    detailStatusBadge.className = `badge text-bg-${message.statusBadge}`;
+                    detailStatusBadge.textContent = message.statusLabel;
                 }
+
+                if (detailReadBadge) {
+                    detailReadBadge.className = message.isRead ? 'badge text-bg-secondary' : 'badge text-bg-danger';
+                    detailReadBadge.textContent = message.isRead ? 'Lida' : 'Nova';
+                }
+
+                if (detailReadAtRow) {
+                    detailReadAtRow.classList.toggle('d-none', !message.isRead);
+                }
+
+                if (detailReadAt) {
+                    detailReadAt.textContent = message.readAtLabel || '';
+                }
+
+                if (detailUnreadButton) {
+                    detailUnreadButton.classList.toggle('d-none', !message.isRead);
+                }
+            }
+
+            if (detailUnreadButton) {
+                detailUnreadButton.addEventListener('click', async function() {
+                    if (!selectedMessageId || pendingMessageIds.has(selectedMessageId)) {
+                        return;
+                    }
+
+                    const current = findMessageById(selectedMessageId);
+                    if (!current || !current.isRead) {
+                        return;
+                    }
+
+                    pendingMessageIds.add(selectedMessageId);
+                    detailUnreadButton.disabled = true;
+
+                    try {
+                        const payload = await postMarkAsUnread(selectedMessageId);
+                        current.isRead = false;
+                        current.readAtLabel = '';
+
+                        renderDetailModal(current);
+                        updateCardsAndEmptyState();
+                        renderListModal(selectedCategory);
+
+                        if (payload && typeof payload.unreadCount === 'number') {
+                            updateStudentMassMessageBellSafe(payload.unreadCount);
+                        }
+                    } catch (error) {
+                        console.error('Erro ao marcar como não lida:', error);
+                    } finally {
+                        pendingMessageIds.delete(selectedMessageId);
+                        detailUnreadButton.disabled = false;
+                    }
+                });
+            }
+
+            if (detailHideButton) {
+                detailHideButton.addEventListener('click', async function() {
+                    if (!selectedMessageId || pendingMessageIds.has(selectedMessageId)) {
+                        return;
+                    }
+
+                    const current = findMessageById(selectedMessageId);
+                    if (!current) {
+                        return;
+                    }
+
+                    pendingMessageIds.add(selectedMessageId);
+                    detailHideButton.disabled = true;
+
+                    try {
+                        const payload = await postHideMessage(selectedMessageId);
+                        messages = messages.filter((msg) => msg.id !== selectedMessageId);
+                        selectedMessageId = null;
+
+                        detailModal.hide();
+                        updateCardsAndEmptyState();
+                        renderListModal(selectedCategory);
+
+                        if (payload && typeof payload.unreadCount === 'number') {
+                            updateStudentMassMessageBellSafe(payload.unreadCount);
+                        }
+                    } catch (error) {
+                        console.error('Erro ao remover mensagem da area:', error);
+                    } finally {
+                        pendingMessageIds.delete(current.id);
+                        detailHideButton.disabled = false;
+                    }
+                });
+            }
+
+            cards.forEach((card) => {
+                card.addEventListener('click', function() {
+                    const category = card.getAttribute('data-category') || 'novas';
+                    renderListModal(category);
+                });
             });
+
+            listModalElement.addEventListener('hidden.bs.modal', function() {
+                if (detailModalElement.classList.contains('show')) {
+                    return;
+                }
+                selectedMessageId = null;
+            });
+
+            updateCardsAndEmptyState();
         }
 
         if (document.readyState === 'loading') {

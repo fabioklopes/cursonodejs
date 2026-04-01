@@ -5,9 +5,9 @@
 {{/if}}
 
 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <h1 class="mb-0">Aviso geral</h1>
+    <h1 class="mb-0">Mensagens</h1>
     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovaMensagemMassa">
-        <i class="fa-solid fa-bullhorn"></i> Nova divulgação
+        <i class="fa-solid fa-bullhorn"></i> Nova mensagem
     </button>
 </div>
 
@@ -35,9 +35,11 @@
                                 data-id="{{id}}"
                                 data-title="{{title}}"
                                 data-content="{{content}}"
+                                data-class-code="{{class_code}}"
                                 data-class-display="{{class_display}}"
                                 data-created-at="{{createdAtLabel}}"
                                 data-expires-at="{{expiresAtLabel}}"
+                                data-expires-at-input="{{expiresAtInputValue}}"
                                 data-status-label="{{statusLabel}}"
                                 data-status-badge="{{statusBadge}}"
                                 role="button"
@@ -80,9 +82,11 @@
                                 data-id="{{id}}"
                                 data-title="{{title}}"
                                 data-content="{{content}}"
+                                data-class-code="{{class_code}}"
                                 data-class-display="{{class_display}}"
                                 data-created-at="{{createdAtLabel}}"
                                 data-expires-at="{{expiresAtLabel}}"
+                                data-expires-at-input="{{expiresAtInputValue}}"
                                 data-status-label="{{statusLabel}}"
                                 data-status-badge="{{statusBadge}}"
                                 role="button"
@@ -103,7 +107,7 @@
     </div>
 </div>
 
-<p class="small text-body-secondary mb-3">Total geral: {{totalMensagens}}</p>
+{{!-- <p class="small text-body-secondary mb-3">Total geral: {{totalMensagens}}</p> --}}
 
 <div class="modal fade" id="modalNovaMensagemMassa" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
@@ -116,8 +120,8 @@
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="mensagemTitle" class="form-label">Título</label>
-                        <input type="text" id="mensagemTitle" name="title" class="form-control" maxlength="25" required>
-                        <div class="form-text">Máximo de 25 caracteres.</div>
+                        <input type="text" id="mensagemTitle" name="title" class="form-control" maxlength="50" required>
+                        <div class="form-text">Máximo de 50 caracteres.</div>
                     </div>
 
                     <div class="mb-3">
@@ -132,13 +136,18 @@
                     </div>
 
                     <div class="mb-1">
-                        <label for="mensagemClasses" class="form-label">Selecione a turma para receber a mensagem</label>
-                        <select id="mensagemClasses" name="class_codes" class="form-select" multiple size="6" required>
+                        <label class="form-label">Selecione a turma para receber a mensagem</label>
+                        <div class="mass-message-class-picker" id="mensagemClassesPicker">
                             {{#each turmas}}
-                            <option value="{{class_code}}">{{class_name}} ({{class_code}})</option>
+                            <label class="mass-message-class-card">
+                                <input type="checkbox" name="class_codes" value="{{class_code}}" class="form-check-input mass-message-class-checkbox">
+                                <span class="mass-message-class-content">
+                                    <span class="mass-message-class-name">{{class_name}}</span>
+                                </span>
+                            </label>
                             {{/each}}
-                        </select>
-                        <div class="form-text">Use Ctrl (ou Cmd no Mac) para selecionar várias turmas.</div>
+                        </div>
+                        <div class="form-text">Marque uma ou mais turmas para enviar o aviso.</div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -154,24 +163,46 @@
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title"><i class="fa-solid fa-bullhorn"></i> Detalhes do Aviso Geral</h5>
+                <h5 class="modal-title"><i class="fa-solid fa-bullhorn"></i> Editar Aviso Geral</h5>
             </div>
+            <form id="reativarMensagemForm" method="POST" action="/mensagens/0/reativar">
             <div class="modal-body">
-                <div class="mb-2"><span class="fw-semibold">Título:</span> <span id="detalheMensagemTitulo">-</span></div>
-                <div class="mb-2"><span class="fw-semibold">Mensagem:</span> <span id="detalheMensagemConteudo">-</span></div>
-                <div class="mb-2"><span class="fw-semibold">Turma:</span> <span id="detalheMensagemTurma">-</span></div>
-                <div class="mb-2"><span class="fw-semibold">Data de criação:</span> <span id="detalheMensagemCriacao">-</span></div>
-                <div class="mb-2"><span class="fw-semibold">Data de expiração:</span> <span id="detalheMensagemExpiracao">-</span></div>
-                <div class="mb-0"><span class="fw-semibold">Status atual:</span> <span id="detalheMensagemStatus" class="badge text-bg-secondary">-</span></div>
+                <div class="mb-3">
+                    <label for="reativarMensagemTitulo" class="form-label">Título</label>
+                    <input type="text" id="reativarMensagemTitulo" name="reactivate_title" class="form-control" maxlength="50" required>
+                    <div class="form-text">Máximo de 50 caracteres.</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="reativarMensagemConteudo" class="form-label">Mensagem</label>
+                    <textarea id="reativarMensagemConteudo" name="reactivate_content" class="form-control" rows="4" maxlength="255" required></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label for="reativarMensagemExpiresAt" class="form-label">Nova data de expiração</label>
+                    <input type="datetime-local" id="reativarMensagemExpiresAt" name="reactivate_expires_at" class="form-control" required>
+                </div>
+
+                <div class="mb-0">
+                    <label class="form-label">Turma alvo</label>
+                    <div class="mass-message-class-picker" id="reativarMensagemClassesPicker">
+                        {{#each turmas}}
+                        <label class="mass-message-class-card mass-message-class-card-single">
+                            <input type="checkbox" name="reactivate_class_codes" value="{{class_code}}" class="form-check-input mass-message-reactivate-checkbox">
+                            <span class="mass-message-class-content">
+                                <span class="mass-message-class-name">{{class_name}}</span>
+                            </span>
+                        </label>
+                        {{/each}}
+                    </div>
+                    <div class="form-text">Marque uma ou mais turmas para reativar e replicar este aviso.</div>
+                </div>
             </div>
             <div class="modal-footer justify-content-between flex-column flex-md-row gap-2 align-items-stretch">
-                <form id="reativarMensagemForm" method="POST" action="/mensagens/0/reativar" class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto">
-                    <label for="reativarMensagemExpiresAt" class="visually-hidden">Nova data de expiração</label>
-                    <input type="datetime-local" id="reativarMensagemExpiresAt" name="reactivate_expires_at" class="form-control" required>
-                    <button type="submit" class="btn btn-outline-primary text-nowrap">Editar / Reativar este aviso</button>
-                </form>
+                <button type="submit" class="btn btn-outline-primary text-nowrap">Salvar</button>
                 <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Fechar</button>
             </div>
+            </form>
         </div>
     </div>
 </div>
@@ -192,6 +223,43 @@
     .mensagem-row-clickable {
         cursor: pointer;
     }
+
+    .mass-message-class-picker {
+        max-height: 240px;
+        overflow-y: auto;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.75rem;
+        padding: 0.75rem;
+        display: grid;
+        gap: 0.6rem;
+    }
+
+    .mass-message-class-card {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        border: 1px solid var(--bs-border-color);
+        border-radius: 0.75rem;
+        padding: 0.75rem;
+        background-color: var(--bs-body-bg);
+        cursor: pointer;
+    }
+
+    .mass-message-class-card:hover {
+        border-color: var(--bs-primary);
+        background-color: rgba(13, 110, 253, 0.04);
+    }
+
+    .mass-message-class-content {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+    }
+
+    .mass-message-class-name {
+        font-weight: 600;
+    }
+
 </style>
 
 <script>
@@ -222,37 +290,61 @@
             }
 
             const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
-            const titulo = document.getElementById('detalheMensagemTitulo');
-            const conteudo = document.getElementById('detalheMensagemConteudo');
-            const turma = document.getElementById('detalheMensagemTurma');
-            const criacao = document.getElementById('detalheMensagemCriacao');
-            const expiracao = document.getElementById('detalheMensagemExpiracao');
-            const status = document.getElementById('detalheMensagemStatus');
             const reativarForm = document.getElementById('reativarMensagemForm');
+            const reativarTitulo = document.getElementById('reativarMensagemTitulo');
+            const reativarConteudo = document.getElementById('reativarMensagemConteudo');
             const reativarInput = document.getElementById('reativarMensagemExpiresAt');
+            const reativarClassCheckboxes = Array.from(document.querySelectorAll('.mass-message-reactivate-checkbox'));
+
+            function syncClassCardState(scopeSelector) {
+                const checkboxes = Array.from(document.querySelectorAll(scopeSelector));
+                checkboxes.forEach((checkbox) => {
+                    const card = checkbox.closest('.mass-message-class-card');
+                    if (!card) {
+                        return;
+                    }
+
+                    card.classList.toggle('border-primary', checkbox.checked);
+                    card.classList.toggle('bg-primary-subtle', checkbox.checked);
+                });
+            }
+
+            Array.from(document.querySelectorAll('.mass-message-class-checkbox')).forEach((checkbox) => {
+                checkbox.addEventListener('change', function() {
+                    syncClassCardState('.mass-message-class-checkbox');
+                });
+            });
+
+            reativarClassCheckboxes.forEach((checkbox) => {
+                checkbox.addEventListener('change', function() {
+                    syncClassCardState('.mass-message-reactivate-checkbox');
+                });
+            });
 
             function openByRow(row) {
                 const id = row.getAttribute('data-id') || '0';
-                const statusBadge = row.getAttribute('data-status-badge') || 'secondary';
-
-                if (titulo) titulo.textContent = row.getAttribute('data-title') || '-';
-                if (conteudo) conteudo.textContent = row.getAttribute('data-content') || '-';
-                if (turma) turma.textContent = row.getAttribute('data-class-display') || '-';
-                if (criacao) criacao.textContent = row.getAttribute('data-created-at') || '-';
-                if (expiracao) expiracao.textContent = row.getAttribute('data-expires-at') || '-';
-
-                if (status) {
-                    status.textContent = row.getAttribute('data-status-label') || '-';
-                    status.className = `badge text-bg-${statusBadge}`;
-                }
+                const classCode = row.getAttribute('data-class-code') || '';
 
                 if (reativarForm) {
                     reativarForm.action = `/mensagens/${id}/reativar`;
                 }
 
-                if (reativarInput) {
-                    reativarInput.value = '';
+                if (reativarTitulo) {
+                    reativarTitulo.value = row.getAttribute('data-title') || '';
                 }
+
+                if (reativarConteudo) {
+                    reativarConteudo.value = row.getAttribute('data-content') || '';
+                }
+
+                if (reativarInput) {
+                    reativarInput.value = row.getAttribute('data-expires-at-input') || '';
+                }
+
+                reativarClassCheckboxes.forEach((checkbox) => {
+                    checkbox.checked = checkbox.value === classCode;
+                });
+                syncClassCardState('.mass-message-reactivate-checkbox');
 
                 modal.show(row);
             }

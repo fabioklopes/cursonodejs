@@ -472,6 +472,7 @@ function toMassMessageViewModel(mensagem, turmaByCode = {}) {
         expiresAtLabel: formatDateTimePtBr(plain.expires_at),
         expiresAtValue: plain.expires_at,
         createdAtLabel: formatDateTimePtBr(plain.createdAt),
+        createdAtValue: plain.createdAt,
         expiresAtInputValue: formatDateTimeForInput(plain.expires_at),
         deliveryKey: buildMassMessageDeliveryKey(plain)
     };
@@ -552,12 +553,8 @@ async function getStudentMassMessageState(usuarioSessao) {
     );
 
     const where = {
-        status: 'A',
-        class: { [Op.in]: audience.classCodes },
-        [Op.or]: [
-            { expires_at: null },
-            { expires_at: { [Op.gt]: new Date() } }
-        ]
+        status: { [Op.in]: ['A', 'E'] },
+        class: { [Op.in]: audience.classCodes }
     };
 
     if (hiddenIds.length > 0) {
@@ -572,9 +569,11 @@ async function getStudentMassMessageState(usuarioSessao) {
     const messages = mensagens.map((mensagem) => {
         const vm = toMassMessageViewModel(mensagem, audience.turmaByCode);
         const readAt = readByMessageId.get(Number(vm.id)) || null;
+        const isExpired = vm.statusLabel === 'Expirado';
 
         return {
             ...vm,
+            isExpired,
             isRead: !!readAt,
             readAtLabel: readAt ? formatDateTimePtBrWithAs(readAt) : '',
             readStateLabel: readAt ? 'Lida' : 'Nova',
@@ -582,7 +581,7 @@ async function getStudentMassMessageState(usuarioSessao) {
         };
     });
 
-    const unreadMessages = messages.filter((message) => !message.isRead);
+    const unreadMessages = messages.filter((message) => !message.isRead && !message.isExpired);
 
     return {
         messages,
@@ -603,12 +602,8 @@ async function findVisibleMassMessageForStudent(usuarioSessao, messageId) {
     return MensagemProfessor.findOne({
         where: {
             id: messageId,
-            status: 'A',
-            class: { [Op.in]: audience.classCodes },
-            [Op.or]: [
-                { expires_at: null },
-                { expires_at: { [Op.gt]: new Date() } }
-            ]
+            status: { [Op.in]: ['A', 'E'] },
+            class: { [Op.in]: audience.classCodes }
         }
     });
 }
@@ -1655,8 +1650,8 @@ app.post('/mensagens', async (req, res) => {
         if (!title) {
             throw new Error('Informe o titulo da mensagem.');
         }
-        if (title.length > 25) {
-            throw new Error('Titulo deve ter no maximo 25 caracteres.');
+        if (title.length > 50) {
+            throw new Error('Titulo deve ter no maximo 50 caracteres.');
         }
 
         if (!content) {
@@ -1724,12 +1719,44 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
             throw new Error('Mensagem invalida para reativacao.');
         }
 
+        const title = String(req.body.reactivate_title || '').trim();
+        const content = String(req.body.reactivate_content || '').trim();
         const expiresAt = parseDateTimeInput(req.body.reactivate_expires_at);
+        const rawClassCodes = Array.isArray(req.body.reactivate_class_codes)
+            ? req.body.reactivate_class_codes
+            : [req.body.reactivate_class_codes || req.body.reactivate_class_code || ''];
+        const classCodes = [...new Set(rawClassCodes.map((item) => String(item || '').trim()).filter(Boolean))];
+
+        if (!title) {
+            throw new Error('Informe o titulo da mensagem.');
+        }
+        if (title.length > 50) {
+            throw new Error('Titulo deve ter no maximo 50 caracteres.');
+        }
+
+        if (!content) {
+            throw new Error('Informe o conteudo da mensagem.');
+        }
+        if (content.length > 255) {
+            throw new Error('Mensagem deve ter no maximo 255 caracteres.');
+        }
+
+        if (classCodes.length === 0) {
+            throw new Error('Selecione a turma alvo da mensagem.');
+        }
+
         if (!expiresAt) {
             throw new Error('Informe uma nova data de expiracao valida.');
         }
         if (expiresAt <= new Date()) {
             throw new Error('A nova data de expiracao deve ser maior que o momento atual.');
+        }
+
+        const turmasDisponiveis = await getTurmasDisponiveisParaMensagem(req.session.usuario);
+        const allowedCodes = new Set(turmasDisponiveis.map((item) => item.class_code));
+        const hasInvalidClass = classCodes.some((code) => !allowedCodes.has(code));
+        if (hasInvalidClass) {
+            throw new Error('Uma ou mais turmas selecionadas nao estao disponiveis para o seu perfil.');
         }
 
         const where = { id: messageId };
@@ -1742,11 +1769,40 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
             throw new Error('Mensagem nao encontrada ou sem permissao para reativar.');
         }
 
+        mensagemExistente.title = title;
+        mensagemExistente.content = content;
+        mensagemExistente.class = classCodes[0];
         mensagemExistente.expires_at = expiresAt;
         mensagemExistente.status = 'A';
         await mensagemExistente.save();
 
-        const mensagem = 'Mensagem reativada com sucesso.';
+        // Reativacao deve voltar como mensagem nova para os alunos.
+        await Promise.all([
+            MensagemProfessorLeitura.destroy({
+                where: { message_id: mensagemExistente.id }
+            }),
+            MensagemProfessorOcultacao.destroy({
+                where: { message_id: mensagemExistente.id }
+            })
+        ]);
+
+        const additionalClassCodes = classCodes.slice(1);
+        if (additionalClassCodes.length > 0) {
+            await MensagemProfessor.bulkCreate(
+                additionalClassCodes.map((classCode) => ({
+                    title,
+                    content,
+                    class: classCode,
+                    created_by: req.session.usuario.user_code,
+                    expires_at: expiresAt,
+                    status: 'A'
+                }))
+            );
+        }
+
+        const mensagem = classCodes.length > 1
+            ? 'Mensagem reativada e replicada com sucesso para as turmas selecionadas.'
+            : 'Mensagem reativada com sucesso.';
         return res.redirect(`/mensagens?mensagem=${encodeURIComponent(mensagem)}&tipo=success`);
     } catch (err) {
         return res.redirect(`/mensagens?mensagem=${encodeURIComponent(err.message)}&tipo=danger`);
