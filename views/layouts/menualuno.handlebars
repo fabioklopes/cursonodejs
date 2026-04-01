@@ -13,6 +13,12 @@
         <li><hr class="dropdown-divider"></li>
         <li class="dropdown-header text-muted">Você no controle</li>
         <li><a class="dropdown-item" href="/presenca"><i class="fa-solid fa-calendar-check"></i> Controle de Presença</a></li>
+        <li>
+            <a class="dropdown-item d-flex align-items-center justify-content-between gap-2" href="/mensagens/mestre">
+                <span><i class="fa-solid fa-bell"></i> Mensagens do Mestre</span>
+                <span class="badge text-bg-danger {{#unless studentMassMessageBell.hasUnread}}d-none{{/unless}}" id="studentMassMessageMenuBadge">{{studentMassMessageBell.unreadCount}}</span>
+            </a>
+        </li>
         <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-line"></i> Meu Progresso</a></li>
         <li><a class="dropdown-item" href="#"><i class="fa-solid fa-chart-pie"></i> Relatórios</a></li>
 

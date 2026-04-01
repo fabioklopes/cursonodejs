@@ -18,6 +18,9 @@ const Usuario = require('./models/Usuario');
 const Presenca = require('./models/Presenca');
 const Turma = require('./models/Turma');
 const TurmaAluno = require('./models/TurmaAluno');
+const MensagemProfessor = require('./models/MensagemProfessor');
+const MensagemProfessorOcultacao = require('./models/MensagemProfessorOcultacao');
+const MensagemProfessorLeitura = require('./models/MensagemProfessorLeitura');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
@@ -118,12 +121,28 @@ app.use(async (req, res, next) => {
     next();
 });
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
     res.locals.birthdayLoginModal = req.session.birthdayLoginModal || null;
+    res.locals.studentMassMessageBell = null;
     res.locals.motivationalMessage = req.session.motivationalMessage || '';
 
     if (req.session.birthdayLoginModal) {
         delete req.session.birthdayLoginModal;
+    }
+
+    try {
+        if (req.session.usuario) {
+            await expireProfessorMessagesIfNeeded();
+        }
+
+        const usuarioSessao = req.session.usuario;
+        if (usuarioSessao && usuarioSessao.role === 'STD') {
+            const massMessageState = await getStudentMassMessageState(usuarioSessao);
+            res.locals.studentMassMessageBell = buildStudentMassMessageBellViewModel(massMessageState);
+        }
+    } catch (err) {
+        console.error('Erro ao preparar modal de mensagem em massa:', err.message);
+        res.locals.studentMassMessageBell = null;
     }
 
     next();
@@ -310,6 +329,312 @@ async function getActiveTurmasForUser(userCode) {
     });
 
     return turmas.map((turma) => turma.get({ plain: true }));
+}
+
+async function getStudentMassMessageAudience(usuarioSessao) {
+    if (!usuarioSessao || usuarioSessao.role !== 'STD' || !usuarioSessao.user_code) {
+        return {
+            turmasAluno: [],
+            turmaByCode: {},
+            classCodes: []
+        };
+    }
+
+    const turmasAluno = await getActiveTurmasForUser(usuarioSessao.user_code);
+    const classCodes = [...new Set(turmasAluno.map((turma) => turma.class_code).filter(Boolean))];
+    const turmaByCode = turmasAluno.reduce((acc, turma) => {
+        acc[turma.class_code] = turma.class_name;
+        return acc;
+    }, {});
+
+    return {
+        turmasAluno,
+        turmaByCode,
+        classCodes
+    };
+}
+
+function formatDateTimeForInput(dateValue) {
+    if (!dateValue) {
+        return '';
+    }
+
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    const pad = (value) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function formatDateTimePtBr(dateValue) {
+    if (!dateValue) {
+        return '-';
+    }
+
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) {
+        return '-';
+    }
+
+    return date.toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function formatDateTimePtBrWithAs(dateValue) {
+    return formatDateTimePtBr(dateValue).replace(',', ' às');
+}
+
+function parseDateTimeInput(value) {
+    const normalized = String(value || '').trim();
+    if (!normalized) {
+        return null;
+    }
+
+    const date = new Date(normalized);
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function expireProfessorMessagesIfNeeded() {
+    await MensagemProfessor.update(
+        { status: 'E' },
+        {
+            where: {
+                status: 'A',
+                expires_at: {
+                    [Op.not]: null,
+                    [Op.lte]: new Date()
+                }
+            }
+        }
+    );
+}
+
+async function getTurmasDisponiveisParaMensagem(usuarioSessao) {
+    if (!usuarioSessao) {
+        return [];
+    }
+
+    const where = { active: 'Y' };
+    if (usuarioSessao.role !== 'ADM') {
+        where.created_by = usuarioSessao.user_code;
+    }
+
+    const turmas = await Turma.findAll({
+        where,
+        attributes: ['class_code', 'class_name'],
+        order: [['class_name', 'ASC']]
+    });
+
+    return turmas.map((turma) => turma.get({ plain: true }));
+}
+
+function toMassMessageViewModel(mensagem, turmaByCode = {}) {
+    const plain = typeof mensagem.get === 'function'
+        ? mensagem.get({ plain: true })
+        : mensagem;
+
+    const className = turmaByCode[plain.class] || plain.class;
+    const now = new Date();
+    const hasExpireAt = !!plain.expires_at;
+    const expiresAtDate = hasExpireAt ? new Date(plain.expires_at) : null;
+    const hasValidExpireAt = expiresAtDate && !Number.isNaN(expiresAtDate.getTime());
+    const msUntilExpire = hasValidExpireAt ? (expiresAtDate.getTime() - now.getTime()) : null;
+    const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+
+    let statusLabel = 'Ativo';
+    let statusBadge = 'primary';
+
+    if (plain.status === 'E' || (hasValidExpireAt && msUntilExpire <= 0)) {
+        statusLabel = 'Expirado';
+        statusBadge = 'secondary';
+    } else if (hasValidExpireAt && msUntilExpire <= twentyFourHoursMs) {
+        statusLabel = 'Expira em breve';
+        statusBadge = 'warning';
+    }
+
+    return {
+        id: plain.id,
+        title: plain.title,
+        content: plain.content,
+        class_code: plain.class,
+        class_name: className,
+        class_display: `${className} (${plain.class})`,
+        status: plain.status,
+        statusLabel,
+        statusBadge,
+        expiresAtLabel: formatDateTimePtBr(plain.expires_at),
+        expiresAtValue: plain.expires_at,
+        createdAtLabel: formatDateTimePtBr(plain.createdAt),
+        expiresAtInputValue: formatDateTimeForInput(plain.expires_at),
+        deliveryKey: buildMassMessageDeliveryKey(plain)
+    };
+}
+
+function buildMassMessageDeliveryKey(mensagem) {
+    const plain = typeof mensagem.get === 'function'
+        ? mensagem.get({ plain: true })
+        : mensagem;
+
+    const createdAt = plain.createdAt ? new Date(plain.createdAt).toISOString() : '';
+    const updatedAt = plain.updatedAt ? new Date(plain.updatedAt).toISOString() : '';
+    const expiresAt = plain.expires_at ? new Date(plain.expires_at).toISOString() : '';
+
+    return [
+        plain.id,
+        plain.class,
+        plain.title,
+        plain.content,
+        plain.status,
+        expiresAt,
+        createdAt,
+        updatedAt
+    ].join('|');
+}
+
+function buildStudentMassMessageBellViewModel(state) {
+    return {
+        href: '/mensagens/mestre',
+        unreadCount: state.unreadCount,
+        totalCount: state.totalCount,
+        hasUnread: state.unreadCount > 0
+    };
+}
+
+async function getStudentMassMessageState(usuarioSessao) {
+    const emptyState = {
+        messages: [],
+        unreadMessages: [],
+        unreadCount: 0,
+        totalCount: 0,
+        turmaByCode: {},
+        classCodes: []
+    };
+
+    if (!usuarioSessao || usuarioSessao.role !== 'STD') {
+        return emptyState;
+    }
+
+    const audience = await getStudentMassMessageAudience(usuarioSessao);
+    if (audience.classCodes.length === 0) {
+        return {
+            ...emptyState,
+            turmaByCode: audience.turmaByCode,
+            classCodes: audience.classCodes
+        };
+    }
+
+    const [ocultacoes, leituras] = await Promise.all([
+        MensagemProfessorOcultacao.findAll({
+            where: { user_code: usuarioSessao.user_code },
+            attributes: ['message_id']
+        }),
+        MensagemProfessorLeitura.findAll({
+            where: { user_code: usuarioSessao.user_code },
+            attributes: ['message_id', 'viewed_at']
+        })
+    ]);
+
+    const hiddenIds = ocultacoes
+        .map((item) => Number(item.message_id))
+        .filter((id) => Number.isInteger(id) && id > 0);
+
+    const readByMessageId = new Map(
+        leituras
+            .map((item) => [Number(item.message_id), item.viewed_at])
+            .filter(([id]) => Number.isInteger(id) && id > 0)
+    );
+
+    const where = {
+        status: 'A',
+        class: { [Op.in]: audience.classCodes },
+        [Op.or]: [
+            { expires_at: null },
+            { expires_at: { [Op.gt]: new Date() } }
+        ]
+    };
+
+    if (hiddenIds.length > 0) {
+        where.id = { [Op.notIn]: hiddenIds };
+    }
+
+    const mensagens = await MensagemProfessor.findAll({
+        where,
+        order: [['createdAt', 'DESC']]
+    });
+
+    const messages = mensagens.map((mensagem) => {
+        const vm = toMassMessageViewModel(mensagem, audience.turmaByCode);
+        const readAt = readByMessageId.get(Number(vm.id)) || null;
+
+        return {
+            ...vm,
+            isRead: !!readAt,
+            readAtLabel: readAt ? formatDateTimePtBrWithAs(readAt) : '',
+            readStateLabel: readAt ? 'Lida' : 'Nova',
+            readStateBadge: readAt ? 'secondary' : 'danger'
+        };
+    });
+
+    const unreadMessages = messages.filter((message) => !message.isRead);
+
+    return {
+        messages,
+        unreadMessages,
+        unreadCount: unreadMessages.length,
+        totalCount: messages.length,
+        turmaByCode: audience.turmaByCode,
+        classCodes: audience.classCodes
+    };
+}
+
+async function findVisibleMassMessageForStudent(usuarioSessao, messageId) {
+    const audience = await getStudentMassMessageAudience(usuarioSessao);
+    if (audience.classCodes.length === 0) {
+        return null;
+    }
+
+    return MensagemProfessor.findOne({
+        where: {
+            id: messageId,
+            status: 'A',
+            class: { [Op.in]: audience.classCodes },
+            [Op.or]: [
+                { expires_at: null },
+                { expires_at: { [Op.gt]: new Date() } }
+            ]
+        }
+    });
+}
+
+async function markMassMessageAsRead(usuarioSessao, messageId) {
+    const mensagem = await findVisibleMassMessageForStudent(usuarioSessao, messageId);
+    if (!mensagem) {
+        throw new Error('Mensagem não encontrada.');
+    }
+
+    const [leitura] = await MensagemProfessorLeitura.findOrCreate({
+        where: {
+            message_id: messageId,
+            user_code: usuarioSessao.user_code
+        },
+        defaults: {
+            viewed_at: new Date()
+        }
+    });
+
+    const state = await getStudentMassMessageState(usuarioSessao);
+
+    return {
+        unreadCount: state.unreadCount,
+        readAtLabel: formatDateTimePtBrWithAs(leitura.viewed_at)
+    };
 }
 
 function normalizeEmail(value) {
@@ -773,21 +1098,69 @@ function getBeltDisplayData(actualBelt, actualDegree) {
 }
 
 function parseBirthDateParts(birthDateValue) {
-    const iso = String(birthDateValue || '').slice(0, 10);
-    const match = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) {
+    if (!birthDateValue) {
         return null;
     }
 
-    const year = parseInt(match[1], 10);
-    const month = parseInt(match[2], 10);
-    const day = parseInt(match[3], 10);
+    const isValidCalendarDate = (year, month, day) => {
+        if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+            return false;
+        }
 
-    if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
-        return null;
+        if (month < 1 || month > 12 || day < 1 || day > 31) {
+            return false;
+        }
+
+        const date = new Date(year, month - 1, day);
+        return date.getFullYear() === year
+            && date.getMonth() === (month - 1)
+            && date.getDate() === day;
+    };
+
+    let year;
+    let month;
+    let day;
+
+    if (birthDateValue instanceof Date) {
+        if (Number.isNaN(birthDateValue.getTime())) {
+            return null;
+        }
+
+        // DATEONLY pode chegar como Date em UTC (00:00:00Z).
+        // Usamos componentes UTC para evitar regressao de um dia por fuso.
+        year = birthDateValue.getUTCFullYear();
+        month = birthDateValue.getUTCMonth() + 1;
+        day = birthDateValue.getUTCDate();
+    } else {
+        const normalized = String(birthDateValue || '').trim();
+        if (!normalized) {
+            return null;
+        }
+
+        const isoMatch = normalized.match(/(\d{4})-(\d{2})-(\d{2})/);
+        const brMatch = normalized.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+
+        if (isoMatch) {
+            year = parseInt(isoMatch[1], 10);
+            month = parseInt(isoMatch[2], 10);
+            day = parseInt(isoMatch[3], 10);
+        } else if (brMatch) {
+            day = parseInt(brMatch[1], 10);
+            month = parseInt(brMatch[2], 10);
+            year = parseInt(brMatch[3], 10);
+        } else {
+            const parsed = new Date(normalized);
+            if (Number.isNaN(parsed.getTime())) {
+                return null;
+            }
+
+            year = parsed.getFullYear();
+            month = parsed.getMonth() + 1;
+            day = parsed.getDate();
+        }
     }
 
-    if (month < 1 || month > 12 || day < 1 || day > 31) {
+    if (!isValidCalendarDate(year, month, day)) {
         return null;
     }
 
@@ -1149,6 +1522,235 @@ app.get('/dashboard', async (req, res) => {
 
 app.get('/dashboardaluno', (req, res) => {
     return res.redirect('/dashboard');
+});
+
+app.get('/mensagens/mestre', async (req, res) => {
+    const usuarioSessao = req.session.usuario;
+    if (!usuarioSessao || usuarioSessao.role !== 'STD') {
+        const mensagem = 'Acesso restrito ao aluno.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    try {
+        const state = await getStudentMassMessageState(usuarioSessao);
+
+        return res.render('mensagensmestre', {
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'info',
+            mensagens: state.messages,
+            totalMensagens: state.totalCount,
+            totalNaoLidas: state.unreadCount,
+            totalLidas: state.totalCount - state.unreadCount
+        });
+    } catch (err) {
+        return res.render('mensagensmestre', {
+            mensagem: 'Erro ao carregar mensagens do mestre: ' + err.message,
+            tipoMensagem: 'danger',
+            mensagens: [],
+            totalMensagens: 0,
+            totalNaoLidas: 0,
+            totalLidas: 0
+        });
+    }
+});
+
+app.get('/mensagens', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Acesso restrito a professor e administrador.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    try {
+        await expireProfessorMessagesIfNeeded();
+
+        const turmasDisponiveis = await getTurmasDisponiveisParaMensagem(req.session.usuario);
+        const turmaByCode = turmasDisponiveis.reduce((acc, turma) => {
+            acc[turma.class_code] = turma.class_name;
+            return acc;
+        }, {});
+
+        const where = {};
+        if (req.session.usuario.role !== 'ADM') {
+            where.created_by = req.session.usuario.user_code;
+        }
+
+        const mensagensAtivas = await MensagemProfessor.findAll({
+            where: {
+                ...where,
+                status: 'A'
+            },
+            order: [['expires_at', 'ASC']]
+        });
+
+        const mensagensExpiradas = await MensagemProfessor.findAll({
+            where: {
+                ...where,
+                status: 'E'
+            },
+            order: [['createdAt', 'DESC']]
+        });
+
+        const mensagensAtivasVm = mensagensAtivas.map((mensagem) => toMassMessageViewModel(mensagem, turmaByCode));
+        const mensagensExpiradasVm = mensagensExpiradas.map((mensagem) => toMassMessageViewModel(mensagem, turmaByCode));
+
+        const defaultExpireDate = new Date();
+        defaultExpireDate.setDate(defaultExpireDate.getDate() + 7);
+
+        return res.render('mensagens', {
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'info',
+            mensagensAtivas: mensagensAtivasVm,
+            mensagensExpiradas: mensagensExpiradasVm,
+            totalMensagens: mensagensAtivasVm.length + mensagensExpiradasVm.length,
+            turmas: turmasDisponiveis,
+            defaultExpireAt: formatDateTimeForInput(defaultExpireDate)
+        });
+    } catch (err) {
+        return res.render('mensagens', {
+            mensagem: 'Erro ao carregar mensagens: ' + err.message,
+            tipoMensagem: 'danger',
+            mensagensAtivas: [],
+            mensagensExpiradas: [],
+            totalMensagens: 0,
+            turmas: [],
+            defaultExpireAt: ''
+        });
+    }
+});
+
+app.post('/mensagens', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Acesso restrito a professor e administrador.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    try {
+        const title = String(req.body.title || '').trim();
+        const content = String(req.body.content || '').trim();
+        const expiresAtInput = String(req.body.expires_at || '').trim();
+        const rawClassCodes = Array.isArray(req.body.class_codes)
+            ? req.body.class_codes
+            : [req.body.class_codes || req.body.class];
+
+        const classCodes = [...new Set(rawClassCodes.map((item) => String(item || '').trim()).filter(Boolean))];
+        const submissionKey = JSON.stringify({
+            title,
+            content,
+            expiresAtInput,
+            classCodes: [...classCodes].sort()
+        });
+
+        const lastSubmission = req.session.lastMassMessageSubmission;
+        const isRepeatedSubmission = Boolean(
+            lastSubmission
+            && lastSubmission.key === submissionKey
+            && (Date.now() - Number(lastSubmission.at || 0)) < 10000
+        );
+
+        if (isRepeatedSubmission) {
+            const mensagemDuplicada = 'Envio duplicado detectado. A mensagem ja foi processada agora mesmo.';
+            return res.redirect(`/mensagens?mensagem=${encodeURIComponent(mensagemDuplicada)}&tipo=warning`);
+        }
+
+        if (!title) {
+            throw new Error('Informe o titulo da mensagem.');
+        }
+        if (title.length > 25) {
+            throw new Error('Titulo deve ter no maximo 25 caracteres.');
+        }
+
+        if (!content) {
+            throw new Error('Informe o conteudo da mensagem.');
+        }
+        if (content.length > 255) {
+            throw new Error('Mensagem deve ter no maximo 255 caracteres.');
+        }
+
+        if (classCodes.length === 0) {
+            throw new Error('Selecione pelo menos uma turma para receber a mensagem.');
+        }
+
+        const expiresAt = parseDateTimeInput(expiresAtInput);
+        if (!expiresAt) {
+            throw new Error('Informe uma data de expiracao valida.');
+        }
+        if (expiresAt <= new Date()) {
+            throw new Error('A data de expiracao deve ser maior que o momento atual.');
+        }
+
+        const turmasDisponiveis = await getTurmasDisponiveisParaMensagem(req.session.usuario);
+        const allowedCodes = new Set(turmasDisponiveis.map((item) => item.class_code));
+        const hasInvalidClass = classCodes.some((code) => !allowedCodes.has(code));
+        if (hasInvalidClass) {
+            throw new Error('Uma ou mais turmas selecionadas nao estao disponiveis para o seu perfil.');
+        }
+
+        const payload = classCodes.map((classCode) => ({
+            title,
+            content,
+            class: classCode,
+            created_by: req.session.usuario.user_code,
+            expires_at: expiresAt,
+            status: 'A'
+        }));
+
+        await MensagemProfessor.bulkCreate(payload);
+        req.session.lastMassMessageSubmission = {
+            key: submissionKey,
+            at: Date.now()
+        };
+
+        const mensagem = classCodes.length > 1
+            ? 'Mensagens em massa criadas com sucesso para as turmas selecionadas.'
+            : 'Mensagem em massa criada com sucesso.';
+
+        return res.redirect(`/mensagens?mensagem=${encodeURIComponent(mensagem)}&tipo=success`);
+    } catch (err) {
+        return res.redirect(`/mensagens?mensagem=${encodeURIComponent(err.message)}&tipo=danger`);
+    }
+});
+
+app.post('/mensagens/:id/reativar', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Acesso restrito a professor e administrador.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    try {
+        await expireProfessorMessagesIfNeeded();
+
+        const messageId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(messageId) || messageId <= 0) {
+            throw new Error('Mensagem invalida para reativacao.');
+        }
+
+        const expiresAt = parseDateTimeInput(req.body.reactivate_expires_at);
+        if (!expiresAt) {
+            throw new Error('Informe uma nova data de expiracao valida.');
+        }
+        if (expiresAt <= new Date()) {
+            throw new Error('A nova data de expiracao deve ser maior que o momento atual.');
+        }
+
+        const where = { id: messageId };
+        if (req.session.usuario.role !== 'ADM') {
+            where.created_by = req.session.usuario.user_code;
+        }
+
+        const mensagemExistente = await MensagemProfessor.findOne({ where });
+        if (!mensagemExistente) {
+            throw new Error('Mensagem nao encontrada ou sem permissao para reativar.');
+        }
+
+        mensagemExistente.expires_at = expiresAt;
+        mensagemExistente.status = 'A';
+        await mensagemExistente.save();
+
+        const mensagem = 'Mensagem reativada com sucesso.';
+        return res.redirect(`/mensagens?mensagem=${encodeURIComponent(mensagem)}&tipo=success`);
+    } catch (err) {
+        return res.redirect(`/mensagens?mensagem=${encodeURIComponent(err.message)}&tipo=danger`);
+    }
 });
 
 app.get('/turmas', async (req, res) => {
@@ -2463,6 +3065,106 @@ app.post('/aniversario/mensagens/desativar', async (req, res) => {
     }
 });
 
+app.post('/mensagens/ocultar', async (req, res) => {
+    try {
+        const usuarioSessao = req.session.usuario;
+        if (!usuarioSessao || !usuarioSessao.user_code) {
+            return res.status(401).json({ ok: false, mensagem: 'Não autenticado.' });
+        }
+
+        const messageId = parseInt(req.body.message_id, 10);
+        if (!Number.isInteger(messageId) || messageId <= 0) {
+            return res.status(400).json({ ok: false, mensagem: 'Mensagem inválida.' });
+        }
+
+        const mensagem = await findVisibleMassMessageForStudent(usuarioSessao, messageId);
+        if (!mensagem) {
+            return res.status(403).json({ ok: false, mensagem: 'Sem turma ativa para esta operação.' });
+        }
+
+        await MensagemProfessorOcultacao.findOrCreate({
+            where: {
+                message_id: messageId,
+                user_code: usuarioSessao.user_code
+            },
+            defaults: {
+                hidden_at: new Date()
+            }
+        });
+
+        const state = await getStudentMassMessageState(usuarioSessao);
+
+        return res.json({
+            ok: true,
+            unreadCount: state.unreadCount,
+            totalCount: state.totalCount
+        });
+    } catch (err) {
+        return res.status(500).json({ ok: false, mensagem: 'Erro ao ocultar mensagem: ' + err.message });
+    }
+});
+
+app.post('/mensagens/mestre/:id/lida', async (req, res) => {
+    try {
+        const usuarioSessao = req.session.usuario;
+        if (!usuarioSessao || usuarioSessao.role !== 'STD' || !usuarioSessao.user_code) {
+            return res.status(401).json({ ok: false, mensagem: 'Não autenticado.' });
+        }
+
+        const messageId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(messageId) || messageId <= 0) {
+            return res.status(400).json({ ok: false, mensagem: 'Mensagem inválida.' });
+        }
+
+        const result = await markMassMessageAsRead(usuarioSessao, messageId);
+        return res.json({ ok: true, unreadCount: result.unreadCount, readAtLabel: result.readAtLabel });
+    } catch (err) {
+        if (err.message === 'Mensagem não encontrada.') {
+            return res.status(404).json({ ok: false, mensagem: err.message });
+        }
+
+        return res.status(500).json({ ok: false, mensagem: 'Erro ao registrar leitura: ' + err.message });
+    }
+});
+
+app.post('/mensagens/mestre/:id/naoLida', async (req, res) => {
+    try {
+        const usuarioSessao = req.session.usuario;
+        if (!usuarioSessao || usuarioSessao.role !== 'STD' || !usuarioSessao.user_code) {
+            return res.status(401).json({ ok: false, mensagem: 'Não autenticado.' });
+        }
+
+        const messageId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(messageId) || messageId <= 0) {
+            return res.status(400).json({ ok: false, mensagem: 'Mensagem inválida.' });
+        }
+
+        // Verify message exists and is accessible to student
+        const message = await findVisibleMassMessageForStudent(usuarioSessao, messageId);
+        if (!message) {
+            return res.status(404).json({ ok: false, mensagem: 'Mensagem não encontrada.' });
+        }
+
+        // Delete read record to mark as unread
+        await MensagemProfessorLeitura.destroy({
+            where: {
+                message_id: messageId,
+                user_code: usuarioSessao.user_code
+            }
+        });
+
+        // Get updated state
+        const state = await getStudentMassMessageState(usuarioSessao);
+        return res.json({ ok: true, unreadCount: state.unreadCount });
+    } catch (err) {
+        if (err.message === 'Mensagem não encontrada.') {
+            return res.status(404).json({ ok: false, mensagem: err.message });
+        }
+
+        return res.status(500).json({ ok: false, mensagem: 'Erro ao marcar como não lida: ' + err.message });
+    }
+});
+
 
 // GRUPO DE ROTAS DE AUTENTICAÇÃO / RESET PASSWORD
 app.get('/auth/login', function (req, res) {
@@ -2553,7 +3255,8 @@ app.post('/auth/verify', function (req, res) {
         req.session.birthdayLoginModal = buildBirthdayLoginModalData(usuario);
         req.session.motivationalMessage = getRandomMotivationalMessage();
 
-        const redirect = requestedRedirect === '/aluno' || requestedRedirect === '/dashboardaluno'
+        const redirectNeedsNormalization = new Set(['/', '/aluno', '/dashboardaluno']);
+        const redirect = redirectNeedsNormalization.has(requestedRedirect)
             ? getDefaultRedirectByRole(usuario.role)
             : requestedRedirect;
 
@@ -2929,6 +3632,9 @@ async function ensureUsuarioBirthdayMessagesDisabledYearColumn() {
 async function ensureTurmaSchema() {
     await Turma.sync();
     await TurmaAluno.sync();
+    await MensagemProfessor.sync();
+    await MensagemProfessorOcultacao.sync();
+    await MensagemProfessorLeitura.sync();
     await ensureUsuarioClassCodeColumn();
     await ensureUsuarioBirthdayMessagesDisabledColumn();
     await ensureUsuarioBirthdayMessagesDisabledYearColumn();

@@ -1,0 +1,280 @@
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+</div>
+{{/if}}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Aviso geral</h1>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovaMensagemMassa">
+        <i class="fa-solid fa-bullhorn"></i> Nova divulgação
+    </button>
+</div>
+
+<div class="row g-3 mb-2">
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light d-flex align-items-center justify-content-between">
+                <span><i class="fa-solid fa-circle-check text-success"></i> Mensagens ativas</span>
+                <span class="small text-body-secondary">Total: {{mensagensAtivas.length}}</span>
+            </div>
+            <div class="card-body">
+                {{#if mensagensAtivas.length}}
+                <div class="mensagens-table-scroll border rounded-3">
+                    <table class="table table-hover align-middle mb-0 mensagens-table-fixed">
+                        <thead class="table-light position-sticky top-0">
+                            <tr>
+                                <th scope="col">Título</th>
+                                <th scope="col" class="text-end">Expira em</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{#each mensagensAtivas}}
+                            <tr
+                                class="mensagem-row-clickable"
+                                data-id="{{id}}"
+                                data-title="{{title}}"
+                                data-content="{{content}}"
+                                data-class-display="{{class_display}}"
+                                data-created-at="{{createdAtLabel}}"
+                                data-expires-at="{{expiresAtLabel}}"
+                                data-status-label="{{statusLabel}}"
+                                data-status-badge="{{statusBadge}}"
+                                role="button"
+                                tabindex="0"
+                            >
+                                <td>{{title}}</td>
+                                <td class="text-end">{{expiresAtLabel}}</td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+                {{else}}
+                <p class="text-body-secondary mb-0">Nenhuma mensagem ativa.</p>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-light d-flex align-items-center justify-content-between">
+                <span><i class="fa-solid fa-clock text-secondary"></i> Mensagens expiradas</span>
+                <span class="small text-body-secondary">Total: {{mensagensExpiradas.length}}</span>
+            </div>
+            <div class="card-body">
+                {{#if mensagensExpiradas.length}}
+                <div class="mensagens-table-scroll border rounded-3">
+                    <table class="table table-hover align-middle mb-0 mensagens-table-fixed">
+                        <thead class="table-light position-sticky top-0">
+                            <tr>
+                                <th scope="col">Título</th>
+                                <th scope="col" class="text-end">Criada em</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{#each mensagensExpiradas}}
+                            <tr
+                                class="mensagem-row-clickable"
+                                data-id="{{id}}"
+                                data-title="{{title}}"
+                                data-content="{{content}}"
+                                data-class-display="{{class_display}}"
+                                data-created-at="{{createdAtLabel}}"
+                                data-expires-at="{{expiresAtLabel}}"
+                                data-status-label="{{statusLabel}}"
+                                data-status-badge="{{statusBadge}}"
+                                role="button"
+                                tabindex="0"
+                            >
+                                <td>{{title}}</td>
+                                <td class="text-end">{{createdAtLabel}}</td>
+                            </tr>
+                            {{/each}}
+                        </tbody>
+                    </table>
+                </div>
+                {{else}}
+                <p class="text-body-secondary mb-0">Nenhuma mensagem expirada.</p>
+                {{/if}}
+            </div>
+        </div>
+    </div>
+</div>
+
+<p class="small text-body-secondary mb-3">Total geral: {{totalMensagens}}</p>
+
+<div class="modal fade" id="modalNovaMensagemMassa" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="POST" action="/mensagens" id="formNovaMensagemMassa">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fa-solid fa-bullhorn"></i>Aviso Geral</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancelar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="mensagemTitle" class="form-label">Título</label>
+                        <input type="text" id="mensagemTitle" name="title" class="form-control" maxlength="25" required>
+                        <div class="form-text">Máximo de 25 caracteres.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="mensagemContent" class="form-label">Mensagem</label>
+                        <textarea id="mensagemContent" name="content" class="form-control" rows="4" maxlength="255" required></textarea>
+                        <div class="form-text">Máximo de 255 caracteres.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="mensagemExpiresAt" class="form-label">Data de expiração</label>
+                        <input type="datetime-local" id="mensagemExpiresAt" name="expires_at" class="form-control" value="{{defaultExpireAt}}" required>
+                    </div>
+
+                    <div class="mb-1">
+                        <label for="mensagemClasses" class="form-label">Selecione a turma para receber a mensagem</label>
+                        <select id="mensagemClasses" name="class_codes" class="form-select" multiple size="6" required>
+                            {{#each turmas}}
+                            <option value="{{class_code}}">{{class_name}} ({{class_code}})</option>
+                            {{/each}}
+                        </select>
+                        <div class="form-text">Use Ctrl (ou Cmd no Mac) para selecionar várias turmas.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnConfirmarNovaMensagemMassa">Confirmar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalDetalheMensagemMassa" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fa-solid fa-bullhorn"></i> Detalhes do Aviso Geral</h5>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2"><span class="fw-semibold">Título:</span> <span id="detalheMensagemTitulo">-</span></div>
+                <div class="mb-2"><span class="fw-semibold">Mensagem:</span> <span id="detalheMensagemConteudo">-</span></div>
+                <div class="mb-2"><span class="fw-semibold">Turma:</span> <span id="detalheMensagemTurma">-</span></div>
+                <div class="mb-2"><span class="fw-semibold">Data de criação:</span> <span id="detalheMensagemCriacao">-</span></div>
+                <div class="mb-2"><span class="fw-semibold">Data de expiração:</span> <span id="detalheMensagemExpiracao">-</span></div>
+                <div class="mb-0"><span class="fw-semibold">Status atual:</span> <span id="detalheMensagemStatus" class="badge text-bg-secondary">-</span></div>
+            </div>
+            <div class="modal-footer justify-content-between flex-column flex-md-row gap-2 align-items-stretch">
+                <form id="reativarMensagemForm" method="POST" action="/mensagens/0/reativar" class="d-flex flex-column flex-sm-row gap-2 w-100 w-md-auto">
+                    <label for="reativarMensagemExpiresAt" class="visually-hidden">Nova data de expiração</label>
+                    <input type="datetime-local" id="reativarMensagemExpiresAt" name="reactivate_expires_at" class="form-control" required>
+                    <button type="submit" class="btn btn-outline-primary text-nowrap">Editar / Reativar este aviso</button>
+                </form>
+                <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .mensagens-table-scroll {
+        max-height: 320px;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+
+    .mensagens-table-fixed {
+        width: 100%;
+        table-layout: fixed;
+        font-size: 0.9rem;
+    }
+
+    .mensagem-row-clickable {
+        cursor: pointer;
+    }
+</style>
+
+<script>
+    (function() {
+        function initMensagensPage() {
+            const rows = Array.from(document.querySelectorAll('.mensagem-row-clickable'));
+            const modalElement = document.getElementById('modalDetalheMensagemMassa');
+            const formNovaMensagem = document.getElementById('formNovaMensagemMassa');
+            const btnConfirmarNovaMensagem = document.getElementById('btnConfirmarNovaMensagemMassa');
+
+            if (formNovaMensagem && btnConfirmarNovaMensagem) {
+                formNovaMensagem.addEventListener('submit', function() {
+                    if (btnConfirmarNovaMensagem.disabled) {
+                        return;
+                    }
+
+                    btnConfirmarNovaMensagem.disabled = true;
+                    btnConfirmarNovaMensagem.textContent = 'Enviando...';
+                });
+            }
+
+            if (!modalElement || rows.length === 0) {
+                return;
+            }
+
+            if (typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+                return;
+            }
+
+            const modal = bootstrap.Modal.getOrCreateInstance(modalElement);
+            const titulo = document.getElementById('detalheMensagemTitulo');
+            const conteudo = document.getElementById('detalheMensagemConteudo');
+            const turma = document.getElementById('detalheMensagemTurma');
+            const criacao = document.getElementById('detalheMensagemCriacao');
+            const expiracao = document.getElementById('detalheMensagemExpiracao');
+            const status = document.getElementById('detalheMensagemStatus');
+            const reativarForm = document.getElementById('reativarMensagemForm');
+            const reativarInput = document.getElementById('reativarMensagemExpiresAt');
+
+            function openByRow(row) {
+                const id = row.getAttribute('data-id') || '0';
+                const statusBadge = row.getAttribute('data-status-badge') || 'secondary';
+
+                if (titulo) titulo.textContent = row.getAttribute('data-title') || '-';
+                if (conteudo) conteudo.textContent = row.getAttribute('data-content') || '-';
+                if (turma) turma.textContent = row.getAttribute('data-class-display') || '-';
+                if (criacao) criacao.textContent = row.getAttribute('data-created-at') || '-';
+                if (expiracao) expiracao.textContent = row.getAttribute('data-expires-at') || '-';
+
+                if (status) {
+                    status.textContent = row.getAttribute('data-status-label') || '-';
+                    status.className = `badge text-bg-${statusBadge}`;
+                }
+
+                if (reativarForm) {
+                    reativarForm.action = `/mensagens/${id}/reativar`;
+                }
+
+                if (reativarInput) {
+                    reativarInput.value = '';
+                }
+
+                modal.show(row);
+            }
+
+            rows.forEach((row) => {
+                row.addEventListener('click', function() {
+                    openByRow(row);
+                });
+
+                row.addEventListener('keydown', function(event) {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openByRow(row);
+                    }
+                });
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMensagensPage);
+        } else {
+            initMensagensPage();
+        }
+    })();
+</script>

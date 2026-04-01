@@ -1,0 +1,327 @@
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+</div>
+{{/if}}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div>
+        <h1 class="mb-0">Mensagens do Mestre</h1>
+    </div>
+    <a href="/dashboard" class="btn btn-outline-secondary">
+        <i class="fa-solid fa-arrow-left"></i> Voltar
+    </a>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="small text-body-secondary text-uppercase">Ativas</div>
+                <div class="display-6 fw-semibold" id="studentMassTotalCountValue">{{totalMensagens}}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="small text-body-secondary text-uppercase">Não lidas</div>
+                <div class="display-6 fw-semibold text-danger" id="studentMassUnreadCountValue">{{totalNaoLidas}}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="small text-body-secondary text-uppercase">Lidas</div>
+                <div class="display-6 fw-semibold text-secondary" id="studentMassReadCountValue">{{totalLidas}}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="accordion {{#unless mensagens.length}}d-none{{/unless}}" id="mensagensMestreAccordion">
+    {{#each mensagens}}
+    <div class="accordion-item border-0 shadow-sm mb-3 student-mass-message-item {{#unless isRead}}student-mass-message-item-unread{{/unless}}" data-message-id="{{id}}" data-is-read="{{#if isRead}}true{{else}}false{{/if}}">
+        <h2 class="accordion-header">
+            <button class="accordion-button collapsed gap-3" type="button" data-bs-toggle="collapse" data-bs-target="#mensagemMestreCollapse{{id}}" aria-expanded="false" aria-controls="mensagemMestreCollapse{{id}}">
+                <span class="d-flex flex-column flex-lg-row align-items-lg-center gap-2 flex-grow-1 text-start">
+                    <span class="fw-semibold">{{title}}</span>
+                    <span class="d-flex flex-wrap gap-2 align-items-center">
+                        <span class="badge text-bg-{{statusBadge}}">{{statusLabel}}</span>
+                        <span class="badge text-bg-{{readStateBadge}} js-read-state-badge">{{readStateLabel}}</span>
+                    </span>
+                </span>
+            </button>
+        </h2>
+        <div id="mensagemMestreCollapse{{id}}" class="accordion-collapse collapse" data-bs-parent="#mensagensMestreAccordion">
+            <div class="accordion-body">
+                <div class="mb-3">
+                    <div class="small text-body-secondary mb-1">Mensagem</div>
+                    <div class="fs-6">{{content}}</div>
+                </div>
+
+                <div class="row g-3 small text-body-secondary mb-3">
+                    <div class="col-12 col-md-6">
+                        <div><strong>Turma:</strong> {{class_display}}</div>
+                        <div><strong>Data de criação:</strong> {{createdAtLabel}}</div>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <div><strong>Expira em:</strong> {{expiresAtLabel}}</div>
+                        <div class="js-read-at-wrapper {{#unless isRead}}d-none{{/unless}}"><strong>Visualizada em:</strong> <span class="js-read-at-label">{{readAtLabel}}</span></div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-column gap-2 justify-content-center">
+                    <button type="button" class="btn btn-outline-primary btn-sm js-mark-unread-button">
+                        <i class="fa-solid fa-envelope"></i> Marcar como não lido
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary btn-sm js-hide-message-button">
+                        <i class="fa-solid fa-eye-slash"></i> Remover da minha área de mensagens
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {{/each}}
+</div>
+
+<div class="card border-0 shadow-sm {{#if mensagens.length}}d-none{{/if}}" id="studentMassEmptyState">
+    <div class="card-body py-4 text-center text-body-secondary">
+        <i class="fa-solid fa-bell-slash fs-2 d-block mb-3"></i>
+        Nenhuma mensagem ativa do mestre para você neste momento.
+                                    if (emptyStateElement) {
+                                        emptyStateElement.classList.toggle('d-none', normalizedTotalCount > 0);
+                                    }
+<style>
+    .student-mass-message-item-unread {
+        border-left: 0.3rem solid var(--bs-primary);
+    }
+
+    .student-mass-message-item .accordion-button {
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .student-mass-message-item .accordion-button:not(.collapsed) {
+        color: inherit;
+        background-color: rgba(13, 110, 253, 0.04);
+    }
+</style>
+
+<script>
+    (function() {
+        function initMensagensMestrePage() {
+            const totalElement = document.getElementById('studentMassTotalCountValue');
+            const unreadElement = document.getElementById('studentMassUnreadCountValue');
+            const readElement = document.getElementById('studentMassReadCountValue');
+            const accordionElement = document.getElementById('mensagensMestreAccordion');
+            const emptyStateElement = document.getElementById('studentMassEmptyState');
+            const items = Array.from(document.querySelectorAll('.student-mass-message-item'));
+            const pendingIds = new Set();
+
+            if (items.length === 0 || typeof bootstrap === 'undefined') {
+                return;
+            }
+
+            function updateCounters(totalCount, unreadCount) {
+                const normalizedTotalCount = Math.max(Number(totalCount) || 0, 0);
+                const normalizedUnreadCount = Math.max(Number(unreadCount) || 0, 0);
+                const readCount = Math.max(normalizedTotalCount - normalizedUnreadCount, 0);
+
+                if (totalElement) totalElement.textContent = String(normalizedTotalCount);
+                if (unreadElement) unreadElement.textContent = String(normalizedUnreadCount);
+                if (readElement) readElement.textContent = String(readCount);
+
+                if (typeof updateStudentMassMessageBell === 'function') {
+                    updateStudentMassMessageBell(normalizedUnreadCount);
+                }
+
+                if (accordionElement) {
+                    accordionElement.classList.toggle('d-none', normalizedTotalCount === 0);
+                }
+
+                if (emptyStateElement) {
+                    emptyStateElement.classList.toggle('d-none', normalizedTotalCount > 0);
+                }
+            }
+
+            async function markAsRead(item) {
+                const messageId = item.getAttribute('data-message-id');
+                if (!messageId || item.getAttribute('data-is-read') === 'true' || pendingIds.has(messageId)) {
+                    return;
+                }
+
+                pendingIds.add(messageId);
+
+                try {
+                    const response = await fetch(`/mensagens/mestre/${messageId}/lida`, {
+                        method: 'POST'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Falha ao registrar leitura da mensagem.');
+                    }
+
+                    const payload = await response.json();
+                    item.setAttribute('data-is-read', 'true');
+                    item.classList.remove('student-mass-message-item-unread');
+
+                    const readStateBadge = item.querySelector('.js-read-state-badge');
+                    if (readStateBadge) {
+                        readStateBadge.textContent = 'Lida';
+                        readStateBadge.className = 'badge text-bg-secondary js-read-state-badge';
+                    }
+
+                    const readAtWrapper = item.querySelector('.js-read-at-wrapper');
+                    const readAtLabel = item.querySelector('.js-read-at-label');
+
+                    if (readAtWrapper) {
+                        readAtWrapper.classList.remove('d-none');
+                    }
+
+                    if (readAtLabel && payload.readAtLabel) {
+                        readAtLabel.textContent = payload.readAtLabel;
+                    }
+
+                    if (typeof payload.unreadCount === 'number') {
+                        const currentTotalCount = Number(totalElement ? totalElement.textContent : items.length) || items.length;
+                        updateCounters(currentTotalCount, payload.unreadCount);
+                    }
+                } catch (error) {
+                    console.error('Erro ao marcar mensagem como lida:', error);
+                } finally {
+                    pendingIds.delete(messageId);
+                }
+            }
+
+            async function markAsUnread(item, button) {
+                const messageId = item.getAttribute('data-message-id');
+                if (!messageId || item.getAttribute('data-is-read') === 'false' || pendingIds.has(messageId)) {
+                    return;
+                }
+
+                pendingIds.add(messageId);
+                if (button) {
+                    button.disabled = true;
+                }
+
+                try {
+                    const response = await fetch(`/mensagens/mestre/${messageId}/naoLida`, {
+                        method: 'POST'
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Falha ao marcar mensagem como não lida.');
+                    }
+
+                    const payload = await response.json();
+                    item.setAttribute('data-is-read', 'false');
+                    item.classList.add('student-mass-message-item-unread');
+
+                    const readStateBadge = item.querySelector('.js-read-state-badge');
+                    if (readStateBadge) {
+                        readStateBadge.textContent = 'Nova';
+                        readStateBadge.className = 'badge text-bg-info js-read-state-badge';
+                    }
+
+                    const readAtWrapper = item.querySelector('.js-read-at-wrapper');
+                    if (readAtWrapper) {
+                        readAtWrapper.classList.add('d-none');
+                    }
+
+                    if (typeof payload.unreadCount === 'number') {
+                        const currentTotalCount = Number(totalElement ? totalElement.textContent : items.length) || items.length;
+                        updateCounters(currentTotalCount, payload.unreadCount);
+                    }
+                } catch (error) {
+                    console.error('Erro ao marcar mensagem como não lida:', error);
+                    if (button) {
+                        button.disabled = false;
+                    }
+                } finally {
+                    pendingIds.delete(messageId);
+                }
+            }
+
+            async function hideMessage(item, button) {
+                const messageId = item.getAttribute('data-message-id');
+                if (!messageId || pendingIds.has(messageId)) {
+                    return;
+                }
+
+                pendingIds.add(messageId);
+                if (button) {
+                    button.disabled = true;
+                }
+
+                try {
+                    const response = await fetch('/mensagens/ocultar', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message_id: messageId
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Falha ao ocultar a mensagem.');
+                    }
+
+                    const payload = await response.json();
+                    item.remove();
+
+                    const totalCount = typeof payload.totalCount === 'number'
+                        ? payload.totalCount
+                        : Math.max((Number(totalElement ? totalElement.textContent : 0) || 0) - 1, 0);
+                    const unreadCount = typeof payload.unreadCount === 'number'
+                        ? payload.unreadCount
+                        : Math.max(Number(unreadElement ? unreadElement.textContent : 0) || 0, 0);
+
+                    updateCounters(totalCount, unreadCount);
+                } catch (error) {
+                    console.error('Erro ao ocultar mensagem do mestre:', error);
+                    if (button) {
+                        button.disabled = false;
+                    }
+                } finally {
+                    pendingIds.delete(messageId);
+                }
+            }
+
+            items.forEach((item) => {
+                const collapseElement = item.querySelector('.accordion-collapse');
+                const unreadButton = item.querySelector('.js-mark-unread-button');
+                const hideButton = item.querySelector('.js-hide-message-button');
+
+                if (!collapseElement) {
+                    return;
+                }
+
+                collapseElement.addEventListener('show.bs.collapse', function() {
+                    markAsRead(item);
+                });
+
+                if (unreadButton) {
+                    unreadButton.addEventListener('click', function() {
+                        markAsUnread(item, unreadButton);
+                    });
+                }
+
+                if (hideButton) {
+                    hideButton.addEventListener('click', function() {
+                        hideMessage(item, hideButton);
+                    });
+                }
+            });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initMensagensMestrePage);
+        } else {
+            initMensagensMestrePage();
+        }
+    })();
+</script>

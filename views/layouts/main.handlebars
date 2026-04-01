@@ -12,6 +12,36 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
         <link rel="icon" href="/img/logotipo.ico">
         <style>
+            .student-message-bell-link {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 2.5rem;
+                height: 2.5rem;
+                color: var(--bs-body-color);
+                text-decoration: none;
+            }
+
+            .student-message-bell-link:hover {
+                color: var(--bs-danger);
+            }
+
+            .student-message-bell-link.is-idle {
+                color: var(--bs-secondary-color);
+                opacity: 0.55;
+            }
+
+            .student-message-bell-icon {
+                font-size: 1.25rem;
+                line-height: 1;
+            }
+
+            .student-message-bell-badge {
+                min-width: 1.2rem;
+                font-size: 0.68rem;
+            }
+
             .table-mobile-stack {
                 width: 100%;
             }
@@ -90,6 +120,21 @@
 
                     <a class="navbar-brand" href="/"><b>CRTN Belém</b></a>
 
+                    {{#if studentMassMessageBell}}
+                    <a
+                        class="student-message-bell-link ms-auto me-2 {{#unless studentMassMessageBell.hasUnread}}is-idle{{/unless}}"
+                        id="studentMassMessageBellLink"
+                        href="{{studentMassMessageBell.href}}"
+                        aria-label="Mensagens do Mestre"
+                        title="Mensagens do Mestre"
+                    >
+                        <span class="student-message-bell-icon" id="studentMassMessageBellIcon">
+                            <i class="fa-solid fa-bell{{#if studentMassMessageBell.hasUnread}} fa-shake text-primary{{else}} text-secondary{{/if}}"></i>
+                        </span>
+                        <span class="badge rounded-pill text-bg-danger position-absolute top-0 start-50 translate-middle student-message-bell-badge {{#unless studentMassMessageBell.hasUnread}}d-none{{/unless}}" id="studentMassMessageBellBadge">{{studentMassMessageBell.unreadCount}}</span>
+                    </a>
+                    {{/if}}
+
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
                         aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                         <span class="navbar-toggler-icon"></span>
@@ -164,7 +209,7 @@
                     <div class="modal-body text-center">
                         {{{birthdayLoginModal.bodyHtml}}}
                     </div>
-                    <div class="modal-footer justify-content-between flex-column flex-sm-row gap-2">
+                    <div class="modal-footer justify-content-start align-items-start flex-column flex-sm-row gap-2">
                         <div class="form-check m-0">
                             <input class="form-check-input" type="checkbox" value="1" id="birthdayDisableMessagesCheckbox">
                             <label class="form-check-label" for="birthdayDisableMessagesCheckbox">
@@ -181,6 +226,34 @@
         <script src="/js/popper.min.js" defer></script>
         <script src="/js/bootstrap.min.js" defer></script>
         <script src="/js/auto-dismiss.js" defer></script>
+        <script>
+            function updateStudentMassMessageBell(unreadCount) {
+                const bellLink = document.getElementById('studentMassMessageBellLink');
+                const bellIcon = document.getElementById('studentMassMessageBellIcon');
+                const bellBadge = document.getElementById('studentMassMessageBellBadge');
+                const menuBadge = document.getElementById('studentMassMessageMenuBadge');
+
+                if (!bellLink || !bellIcon || !bellBadge) {
+                    return;
+                }
+
+                const normalizedUnreadCount = Math.max(Number(unreadCount) || 0, 0);
+                const hasUnread = normalizedUnreadCount > 0;
+
+                bellLink.classList.toggle('is-idle', !hasUnread);
+                bellIcon.innerHTML = hasUnread
+                    ? '<i class="fa-solid fa-bell fa-shake text-primary"></i>'
+                    : '<i class="fa-solid fa-bell text-secondary"></i>';
+
+                bellBadge.textContent = String(normalizedUnreadCount);
+                bellBadge.classList.toggle('d-none', !hasUnread);
+
+                if (menuBadge) {
+                    menuBadge.textContent = String(normalizedUnreadCount);
+                    menuBadge.classList.toggle('d-none', !hasUnread);
+                }
+            }
+        </script>
         {{#if birthdayLoginModal}}
         <script>
             document.addEventListener('DOMContentLoaded', function() {
@@ -222,6 +295,7 @@
             });
         </script>
         {{/if}}
+
     </body>
 
 </html>
