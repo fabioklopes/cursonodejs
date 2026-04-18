@@ -600,11 +600,12 @@ async function findVisibleMassMessageForStudent(usuarioSessao, messageId) {
     }
 
     return MensagemProfessor.findOne({
-        where: {
-            id: messageId,
-            status: { [Op.in]: ['A', 'E'] },
-            class: { [Op.in]: audience.classCodes }
-        }
+        where:
+            {
+                id: messageId,
+                status: { [Op.in]: ['A', 'E'] },
+                class: { [Op.in]: audience.classCodes }
+            }
     });
 }
 
@@ -1822,6 +1823,15 @@ app.get('/turmas', async (req, res) => {
             order: [['class_name', 'ASC']]
         });
 
+        const activeClassCodes = turmas.map(t => t.class_code);
+        const enrolledUserCodes = activeClassCodes.length > 0
+            ? await TurmaAluno.findAll({
+                where: { class_code: { [Op.in]: activeClassCodes }, active: 'Y' },
+                attributes: ['user_code'],
+                group: ['user_code']
+            }).then(results => results.map(r => r.user_code))
+            : [];
+
         const matriculas = await TurmaAluno.findAll({
             where: { active: 'Y' },
             attributes: ['class_code']
@@ -1836,7 +1846,8 @@ app.get('/turmas', async (req, res) => {
         const alunos = await Usuario.findAll({
             where: {
                 role: 'STD',
-                user_status: 'A'
+                user_status: 'A',
+                user_code: { [Op.notIn]: enrolledUserCodes }
             },
             attributes: ['user_code', 'first_name', 'last_name', 'photo'],
             order: [['first_name', 'ASC'], ['last_name', 'ASC']]
@@ -2153,7 +2164,6 @@ app.post('/turmas/remover-alunos', async (req, res) => {
     }
 });
 
-
 // FUNÇÕES DE ALUNOS
 app.get('/aluno', async (req, res) => {
     const hasProfessorPrivileges = hasProfessorAccess(req.session.usuario);
@@ -2167,37 +2177,43 @@ app.get('/aluno', async (req, res) => {
         const whereClauses = [];
 
         if (!hasProfessorPrivileges) {
-            whereClauses.push({ user_status: 'A' });
+            whereClauses.push({user_status: 'A'});
         }
 
         if (searchTerm) {
             const normalizedPhone = searchTerm.replace(/\D/g, '');
             const searchFilters = [
-                { first_name: { [Op.like]: `%${searchTerm}%` } },
-                { last_name: { [Op.like]: `%${searchTerm}%` } },
-                { email: { [Op.like]: `%${searchTerm}%` } }
+                {first_name: {[Op.like]: `%${searchTerm}%`}},
+                {last_name: {[Op.like]: `%${searchTerm}%`}},
+                {email: {[Op.like]: `%${searchTerm}%`}}
             ];
 
             if (normalizedPhone) {
-                searchFilters.push({ phone: { [Op.like]: `%${normalizedPhone}%` } });
+                searchFilters.push({phone: {[Op.like]: `%${normalizedPhone}%`}});
             }
 
-            whereClauses.push({ [Op.or]: searchFilters });
+            whereClauses.push({[Op.or]: searchFilters});
         }
 
         const where = whereClauses.length === 0
             ? undefined
             : whereClauses.length === 1
                 ? whereClauses[0]
-                : { [Op.and]: whereClauses };
+                : {[Op.and]: whereClauses};
 
         const usuarios = await Usuario.findAll({
             where,
+            include: [{
+                model: Usuario,
+                as: 'responsavel',
+                attributes: ['id', 'first_name', 'last_name', 'email', 'phone', 'birth_date', 'photo', 'actual_belt', 'actual_degree', 'user_status', 'role'],
+                required: false
+            }],
             order: [['first_name', 'ASC'], ['last_name', 'ASC']]
         });
 
         const lista = usuarios.map((u) => {
-            const usuario = u.get({ plain: true });
+            const usuario = u.get({plain: true});
             const beltDisplay = getBeltDisplayData(usuario.actual_belt, usuario.actual_degree);
 
             return {
@@ -2208,18 +2224,45 @@ app.get('/aluno', async (req, res) => {
                 belt_label: beltDisplay.beltLabel,
                 degree_label: beltDisplay.degreeLabel,
                 belt_summary_label: beltDisplay.summaryLabel,
-                belt_image_path: beltDisplay.imagePath
+                belt_image_path: beltDisplay.imagePath,
+                responsavel_nome: usuario.responsavel ? `${usuario.responsavel.first_name} ${usuario.responsavel.last_name}` : null,
+                responsavel_dados: usuario.responsavel ? {
+                    id: usuario.responsavel.id,
+                    first_name: usuario.responsavel.first_name,
+                    last_name: usuario.responsavel.last_name,
+                    email: usuario.responsavel.email,
+                    phone: usuario.responsavel.phone,
+                    birth_date: usuario.responsavel.birth_date,
+                    photo: usuario.responsavel.photo,
+                    actual_belt: usuario.responsavel.actual_belt,
+                    actual_degree: usuario.responsavel.actual_degree,
+                    user_status: usuario.responsavel.user_status,
+                    role: usuario.responsavel.role,
+                    wagi_size: usuario.responsavel.wagi_size,
+                    zubon_size: usuario.responsavel.zubon_size,
+                    obi_size: usuario.responsavel.obi_size,
+                    belt_label: getBeltDisplayData(usuario.responsavel.actual_belt, usuario.responsavel.actual_degree).beltLabel,
+                    degree_label: getBeltDisplayData(usuario.responsavel.actual_belt, usuario.responsavel.actual_degree).degreeLabel,
+                    belt_summary_label: getBeltDisplayData(usuario.responsavel.actual_belt, usuario.responsavel.actual_degree).summaryLabel,
+                    belt_image_path: getBeltDisplayData(usuario.responsavel.actual_belt, usuario.responsavel.actual_degree).imagePath,
+                    user_status_label: usuario.responsavel.user_status === 'P' ? 'Pendente' : usuario.responsavel.user_status === 'A' ? 'Ativo' : 'Cancelado',
+                    role_label: getRoleLabel(usuario.responsavel.role)
+                } : null
             };
         });
 
+        const sortByName = (a, b) => {
+            const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
+            const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
+            return nameA.localeCompare(nameB);
+        };
+
         const pendentes = hasProfessorPrivileges
-            ? lista.filter((usuario) => usuario.user_status === 'P')
+            ? lista.filter((usuario) => usuario.user_status === 'P').sort(sortByName)
             : [];
-        const ativos = hasProfessorPrivileges
-            ? lista.filter((usuario) => usuario.user_status === 'A')
-            : lista;
+        const ativos = lista.filter((usuario) => usuario.user_status === 'A').sort(sortByName);
         const cancelados = hasProfessorPrivileges
-            ? lista.filter((usuario) => usuario.user_status === 'C')
+            ? lista.filter((usuario) => usuario.user_status === 'C').sort(sortByName)
             : [];
         const listaOrdenada = hasProfessorPrivileges
             ? pendentes.concat(ativos, cancelados)
@@ -2235,7 +2278,7 @@ app.get('/aluno', async (req, res) => {
         const endPage = Math.min(startPage + pagesPerBlock - 1, totalPages);
         const visiblePages = endPage - startPage + 1;
 
-        const pageNumbers = Array.from({ length: visiblePages }, (_unused, index) => {
+        const pageNumbers = Array.from({length: visiblePages}, (_unused, index) => {
             const pageNumber = startPage + index;
             return {
                 number: pageNumber,
@@ -2243,7 +2286,7 @@ app.get('/aluno', async (req, res) => {
             };
         });
 
-        return res.render('aluno', {
+        res.render('aluno', {
             mensagem: req.query.mensagem || '',
             usuarios: usuariosPaginados,
             hasProfessorPrivileges,
@@ -2262,7 +2305,7 @@ app.get('/aluno', async (req, res) => {
             }
         });
     } catch (err) {
-        return res.render('aluno', {
+        res.render('aluno', {
             mensagem: 'Erro ao carregar alunos: ' + err.message,
             usuarios: [],
             hasProfessorPrivileges,
@@ -2761,6 +2804,46 @@ app.get('/aluno/status/negar/:id', async (req, res) => {
     }
 });
 
+// Atualizar status do aluno (POST)
+app.post('/aluno/status/:id', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        return res.status(403).json({ error: 'Acesso não permitido' });
+    }
+
+    const alunoId = req.params.id;
+    const newStatus = req.body.newStatus || (req.query.status || '').trim();
+
+    try {
+        const usuario = await Usuario.findByPk(alunoId);
+        if (!usuario) {
+            return res.status(404).json({ error: 'Aluno não encontrado' });
+        }
+
+        // Validar transição de status
+        const validTransitions = {
+            'P': ['A', 'C'],      // Pendente pode ir para Ativo ou Cancelado
+            'A': ['C'],           // Ativo pode ir para Cancelado
+            'C': ['A']            // Cancelado pode ir para Ativo
+        };
+
+        if (!validTransitions[usuario.user_status] || !validTransitions[usuario.user_status].includes(newStatus)) {
+            return res.status(400).json({ 
+                error: `Transição inválida de ${usuario.user_status} para ${newStatus}` 
+            });
+        }
+
+        usuario.user_status = newStatus;
+        await usuario.save();
+
+        return res.status(200).json({ 
+            ok: true, 
+            message: 'Status atualizado com sucesso',
+            newStatus 
+        });
+    } catch (err) {
+        return res.status(500).json({ error: 'Erro ao atualizar status: ' + err.message });
+    }
+});
 
 // FUNÇÕES DE PRESENÇAS
 
@@ -2775,7 +2858,7 @@ async function getEffectiveUserCode(req) {
 
 function buildPresencaViewModel(p) {
     const plain = p.get ? p.get({ plain: true }) : p;
-    const statusMap = { P: 'Pendente', A: 'Aprovada', N: 'Negada', C: 'Cancelada' };
+    const statusMap = { P: 'Pendente', A: 'Aprovada', N: 'Negada', C: 'Solicitação cancelada' };
     const statusClassMap = { P: 'text-warning', A: 'text-success', N: 'text-danger', C: 'text-secondary' };
     const classTypeDisplayMap = { Integral: 'Integral', Gi: 'Gi (1ª Aula)', 'No-Gi': 'No-Gi (2ª Aula)' };
     return {
@@ -3415,7 +3498,7 @@ app.get('/auth/reset-password', async (req, res) => {
                 email,
                 token,
                 statusMessages: buildResetPasswordMessages({
-                    errorMessage: 'Este link é inválido ou já expirou. Faça uma nova solicitação de redefinição.',
+                    errorMessage: 'Este link é inválido ou já expirou. Solicite uma nova redefinição.',
                     infoMessage: `Os links de redefinição expiram em ${RESET_TOKEN_TTL_MINUTES} minutos.`
                 })
             });

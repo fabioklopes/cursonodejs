@@ -134,6 +134,19 @@ const Usuario = db.sequelize.define('tb_usuarios', {
     }
 });
 
+// Associação: Um usuário pode ter um responsável (outro usuário)
+Usuario.belongsTo(Usuario, {
+    foreignKey: 'responsible_id',
+    as: 'responsavel',
+    allowNull: true
+});
+
+// Associação: Um usuário pode ser responsável de vários alunos
+Usuario.hasMany(Usuario, {
+    foreignKey: 'responsible_id',
+    as: 'alunos'
+});
+
 
 
 /** 

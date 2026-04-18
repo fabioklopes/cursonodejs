@@ -444,7 +444,6 @@
         <tr>
             <th>Data</th>
             <th>Status</th>
-            <th>Observação</th>
         </tr>
     </thead>
     <tbody>
@@ -462,12 +461,11 @@
                 data-observation="{{observation}}">
                 <td data-label="Data">{{request_date_formatted}}</td>
                 <td data-label="Status"><span class="{{status_class}} fw-semibold">{{status_label}}</span></td>
-                <td data-label="Observação">{{#if observation}}{{observation}}{{else}}<span class="text-body-secondary">—</span>{{/if}}</td>
             </tr>
             {{/each}}
         {{else}}
             <tr>
-                <td colspan="3" class="text-center text-body-secondary py-4">
+                <td colspan="2" class="text-center text-body-secondary py-4">
                     Nenhuma solicitação encontrada.
                 </td>
             </tr>
@@ -528,7 +526,7 @@
 
 
 <!-- ══════════════════════════════════════════════════
-     MODAL: NOVA SOLICITAÇÃO (calendário + lista)
+     MODAL: NOVA SOLICITAÇÃO (calendário)
 ════════════════════════════════════════════════════ -->
 <div class="modal fade" id="modalNovaPresenca" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="modalNovaPresencaLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-scrollable modal-dialog-centered">
@@ -587,25 +585,6 @@
                             <i class="fa-solid fa-paper-plane"></i> Solicitar Presença(s)
                         </button>
                     </div>
-                </div>
-
-                <hr class="my-3">
-
-                <!-- Lista paginada de presenças dentro do modal -->
-                <p class="fw-semibold mb-2 small text-body-secondary">Histórico de solicitações:</p>
-                <div class="modal-presenca-list">
-                    <table class="table table-sm table-striped align-middle mb-0" id="calListaTable">
-                        <thead class="table-light">
-                            <tr><th>Data</th><th>Status</th><th>Observação</th></tr>
-                        </thead>
-                        <tbody id="calListaTbody"></tbody>
-                    </table>
-                </div>
-                <div id="calListaPagination" class="presenca-pagination-wrapper d-flex flex-column align-items-center gap-1 mt-2">
-                    <small id="calListaTotal" class="text-body-secondary"></small>
-                    <nav class="presenca-pagination-nav" aria-label="Paginação modal">
-                        <ul id="calListaPaginationUl" class="pagination pagination-sm mb-0"></ul>
-                    </nav>
                 </div>
             </div>
 
@@ -677,9 +656,6 @@
     /* ── Datas selecionadas: Map<isoStr, classType> ── */
     const selectedDates = new Map();
 
-    /* ── Paginação do modal ── */
-    const CAL_PAGE_SIZE = 10;
-    let calPage = 1;
     let shouldRefreshOnCalendarClose = false;
     let isSwitchingFromCalendarToDetail = false;
 
@@ -691,9 +667,6 @@
     const selectedContainer = document.getElementById('selectedContainer');
     const selectedList     = document.getElementById('selectedList');
     const btnSolicitar     = document.getElementById('btnSolicitar');
-    const calListaTbody    = document.getElementById('calListaTbody');
-    const calListaTotal    = document.getElementById('calListaTotal');
-    const calListaPagUl    = document.getElementById('calListaPaginationUl');
     const presencaClassCode = document.getElementById('presencaClassCode');
 
     /* ── Helpers ── */
@@ -892,53 +865,6 @@
     }
 
     /* ════════════════════════════════
-       LISTA PAGINADA DO MODAL
-    ════════════════════════════════ */
-    function renderCalLista() {
-        // Ordena por data desc
-        const sorted = [...allPresencas].sort((a, b) => b.request_date_iso.localeCompare(a.request_date_iso));
-        const total  = sorted.length;
-        const totalPages = Math.max(1, Math.ceil(total / CAL_PAGE_SIZE));
-        calPage = Math.min(calPage, totalPages);
-
-        const start = (calPage - 1) * CAL_PAGE_SIZE;
-        const page  = sorted.slice(start, start + CAL_PAGE_SIZE);
-
-        calListaTotal.textContent = `Total de registros: ${total}`;
-        calListaTbody.innerHTML = '';
-
-        if (page.length === 0) {
-            calListaTbody.innerHTML = `<tr><td colspan="3" class="text-center text-body-secondary py-3">Nenhum registro.</td></tr>`;
-        } else {
-            page.forEach(p => {
-                const tr = document.createElement('tr');
-                tr.style.cursor = 'pointer';
-                tr.innerHTML = `
-                    <td>${p.request_date_formatted}</td>
-                    <td><span class="${p.status_class} fw-semibold">${p.status_label}</span></td>
-                    <td>${p.observation ? escHtml(p.observation) : '<span class="text-body-secondary">—</span>'}</td>`;
-                tr.addEventListener('click', () => openFromCal(p.id));
-                calListaTbody.appendChild(tr);
-            });
-        }
-
-        // Paginação
-        calListaPagUl.innerHTML = '';
-        const addPageItem = (label, page, disabled, active) => {
-            const li = document.createElement('li');
-            li.className = `page-item${disabled?' disabled':''}${active?' active':''}`;
-            const a = document.createElement('a');
-            a.className = 'page-link'; a.href = '#'; a.textContent = label;
-            if (!disabled) a.addEventListener('click', e => { e.preventDefault(); calPage = page; renderCalLista(); });
-            li.appendChild(a);
-            calListaPagUl.appendChild(li);
-        };
-        addPageItem('Anterior', calPage - 1, calPage <= 1, false);
-        for (let i = 1; i <= totalPages; i++) addPageItem(i, i, false, i === calPage);
-        addPageItem('Próxima', calPage + 1, calPage >= totalPages, false);
-    }
-
-    /* ════════════════════════════════
        ABRIR DETALHE (da tabela)
     ════════════════════════════════ */
     function openFromTable(id) {
@@ -1026,9 +952,7 @@
         addSelectedDate(iso);
         const bsModal = bootstrap.Modal.getInstance(document.getElementById('modalDetalheTabela'));
         if (bsModal) bsModal.hide();
-        calPage = 1;
         renderCalendar();
-        renderCalLista();
         new bootstrap.Modal(document.getElementById('modalNovaPresenca')).show();
     });
 
@@ -1050,7 +974,6 @@
             shouldRefreshOnCalendarClose = true;
             syncIndexes();
             renderCalendar();
-            renderCalLista();
         });
     });
 
@@ -1129,7 +1052,6 @@
 
             renderSelectedList();
             renderCalendar();
-            renderCalLista();
         } catch (e) {
             alert('Erro de comunicação: ' + e.message);
         }
@@ -1162,17 +1084,13 @@
        BOTÃO NOVA SOLICITAÇÃO
     ════════════════════════════════ */
     document.getElementById('btnNovaPresenca').addEventListener('click', () => {
-        // Reinicia página da lista modal
-        calPage = 1;
         renderCalendar();
-        renderCalLista();
         new bootstrap.Modal(document.getElementById('modalNovaPresenca')).show();
     });
 
     /* Init: renderiza lista modal se modal já estiver aberto (opcional) */
     document.getElementById('modalNovaPresenca').addEventListener('show.bs.modal', () => {
         renderCalendar();
-        renderCalLista();
     });
 
     document.getElementById('modalNovaPresenca').addEventListener('hidden.bs.modal', () => {
@@ -1189,4 +1107,8 @@
 })();
 </script>
 {{/if}}
+
+
+
+
 

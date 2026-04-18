@@ -92,6 +92,16 @@
             font-size: 0.85rem;
         }
     }
+
+    .form-check.form-switch.text-success .form-check-input:checked {
+        background-color: var(--bs-success);
+        border-color: var(--bs-success);
+    }
+
+    .form-check.form-switch.text-danger .form-check-input:checked {
+        background-color: var(--bs-danger);
+        border-color: var(--bs-danger);
+    }
 </style>
 
 <form id="alunoSearchForm" method="GET" action="/aluno" class="mb-3">
@@ -111,10 +121,6 @@
     <thead>
         <tr>
             <th>Alunos</th>
-            <th>Status</th>
-            {{#if hasProfessorPrivileges}}
-                <th class="text-center">Ações</th>
-            {{/if}}
         </tr>
     </thead>
     <tbody>
@@ -127,11 +133,13 @@
                         class="aluno-link d-inline-flex align-items-center gap-2 border-0 bg-transparent p-0 w-100"
                         data-bs-toggle="modal"
                         data-bs-target="#alunoModal"
+                        data-id="{{id}}"
                         data-first-name="{{first_name}}"
                         data-last-name="{{last_name}}"
                         data-email="{{email}}"
                         data-role="{{role_label}}"
                         data-status="{{user_status_label}}"
+                        data-status-code="{{user_status}}"
                         data-phone="{{formatPhone phone}}"
                         data-birth-date="{{formatDate birth_date}}"
                         data-belt="{{actual_belt}}"
@@ -143,39 +151,34 @@
                         data-wagi="{{wagi_size}}"
                         data-zubon="{{zubon_size}}"
                         data-obi="{{obi_size}}"
-                        data-responsible="{{responsible_id}}"
                         data-photo="{{photo}}"
+                        {{#if responsavel_dados}}
+                        data-responsible-id="{{responsavel_dados.id}}"
+                        data-responsible-name="{{responsavel_dados.first_name}} {{responsavel_dados.last_name}}"
+                        data-responsible-email="{{responsavel_dados.email}}"
+                        data-responsible-role="{{responsavel_dados.role_label}}"
+                        data-responsible-phone="{{formatPhone responsavel_dados.phone}}"
+                        data-responsible-birth="{{formatDate responsavel_dados.birth_date}}"
+                        data-responsible-belt="{{responsavel_dados.actual_belt}}"
+                        data-responsible-degree="{{responsavel_dados.actual_degree}}"
+                        data-responsible-belt-label="{{responsavel_dados.belt_label}}"
+                        data-responsible-belt-summary="{{responsavel_dados.belt_summary_label}}"
+                        data-responsible-belt-image="{{responsavel_dados.belt_image_path}}"
+                        data-responsible-wagi="{{responsavel_dados.wagi_size}}"
+                        data-responsible-zubon="{{responsavel_dados.zubon_size}}"
+                        data-responsible-obi="{{responsavel_dados.obi_size}}"
+                        data-responsible-photo="{{responsavel_dados.photo}}"
+                        {{/if}}
                     >
                         <img src="{{photo}}" alt="Avatar de {{first_name}} {{last_name}}" class="aluno-avatar">
                         <span>{{first_name}} {{last_name}}</span>
                     </button>
                 </td>
-                <td>
-                    {{#if can_approve}}
-                        <span class="badge text-bg-warning">{{user_status_label}}</span>
-                    {{else}}
-                        {{#if (eq user_status 'A')}}
-                            <span class="badge text-bg-success">{{user_status_label}}</span>
-                        {{else}}
-                            <span class="badge text-bg-secondary">{{user_status_label}}</span>
-                        {{/if}}
-                    {{/if}}
-                </td>
-                {{#if ../hasProfessorPrivileges}}
-                <td class="text-center">
-                    {{#if can_approve}}
-                        <a class="btn btn-sm btn-success" href="/aluno/status/{{id}}">Aprovar</a>
-                        <a class="btn btn-sm btn-outline-danger" href="/aluno/status/negar/{{id}}">Negar</a>
-                    {{else}}
-                        <span class="text-body-secondary">-</span>
-                    {{/if}}
-                </td>
-                {{/if}}
             </tr>
         {{/each}}
         {{else}}
             <tr>
-                <td colspan="{{#if hasProfessorPrivileges}}3{{else}}2{{/if}}" class="text-center text-body-secondary py-4">
+                <td class="text-center text-body-secondary py-4">
                     Nenhum aluno encontrado para os filtros informados.
                 </td>
             </tr>
@@ -230,10 +233,6 @@
                             <span id="modalAlunoRole">-</span>
                         </div>
                         <div class="col-12">
-                            <span class="aluno-detail-label">Status:</span>
-                            <span id="modalAlunoStatus">-</span>
-                        </div>
-                        <div class="col-12">
                             <span class="aluno-detail-label">WhatsApp:</span>
                             <span id="modalAlunoPhone">-</span>
                         </div>
@@ -262,8 +261,79 @@
                             <span id="modalAlunoObi">-</span>
                         </div>
                         <div class="col-12">
-                            <span class="aluno-detail-label">Código do responsável:</span>
-                            <span id="modalAlunoResponsible">-</span>
+                            <span class="aluno-detail-label">Responsável:</span>
+                            <span id="modalAlunoResponsible">
+                                <a href="#" id="modalAlunoResponsibleLink" class="text-decoration-none">-</a>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer d-block text-center">
+                <div class="d-flex align-items-center justify-content-center gap-3 mb-3">
+                    <span class="aluno-detail-label">Status do aluno:</span>
+                    <div class="form-check form-switch" id="alunoStatusSwitchContainer">
+                        <input class="form-check-input" type="checkbox" id="alunoStatusSwitch" role="switch">
+                        <label class="form-check-label" for="alunoStatusSwitch" id="alunoStatusLabel">Ativo</label>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal do Responsável -->
+<div class="modal fade" id="responsibleModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="responsibleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-bottom-0">
+                <h1 class="modal-title fs-5" id="responsibleModalLabel">Dados do responsável</h1>
+            </div>
+
+            <div class="modal-body">
+                <div class="modal-scroll-interno pe-1">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <img id="modalResponsiblePhoto" src="/uploads/users/default.jpg" alt="Avatar do responsável" class="aluno-avatar">
+                        <div>
+                            <div class="fw-semibold" id="modalResponsibleNome">-</div>
+                            <small class="text-body-secondary" id="modalResponsibleEmail">-</small>
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Perfil:</span>
+                            <span id="modalResponsibleRole">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">WhatsApp:</span>
+                            <span id="modalResponsiblePhone">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Aniversário:</span>
+                            <span id="modalResponsibleBirth">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Faixa:</span>
+                            <img id="modalResponsibleBeltImage" src="/img/belts/white_0.png" alt="Faixa do responsável" class="img-fluid" style="max-height: 32px;">
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Faixa:</span>
+                            <span id="modalResponsibleBeltSummary">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Casaco:</span>
+                            <span id="modalResponsibleWagi">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Calça:</span>
+                            <span id="modalResponsibleZubon">-</span>
+                        </div>
+                        <div class="col-12">
+                            <span class="aluno-detail-label">Faixa (tamanho):</span>
+                            <span id="modalResponsibleObi">-</span>
                         </div>
                     </div>
                 </div>
@@ -313,14 +383,56 @@
             setText('modalAlunoNome', fullName || '-');
             setText('modalAlunoEmail', trigger.getAttribute('data-email'));
             setText('modalAlunoRole', trigger.getAttribute('data-role'));
-            setText('modalAlunoStatus', trigger.getAttribute('data-status'));
             setText('modalAlunoPhone', trigger.getAttribute('data-phone'));
             setText('modalAlunoBirth', trigger.getAttribute('data-birth-date'));
             setText('modalAlunoBeltSummary', trigger.getAttribute('data-belt-summary'));
             setText('modalAlunoWagi', trigger.getAttribute('data-wagi'));
             setText('modalAlunoZubon', trigger.getAttribute('data-zubon'));
             setText('modalAlunoObi', trigger.getAttribute('data-obi'));
-            setText('modalAlunoResponsible', trigger.getAttribute('data-responsible'));
+
+            // Configurar responsável como link
+            const responsibleLink = document.getElementById('modalAlunoResponsibleLink');
+            const responsibleName = trigger.getAttribute('data-responsible-name');
+            if (responsibleName && responsibleLink) {
+                responsibleLink.textContent = responsibleName;
+                responsibleLink.href = '#';
+                responsibleLink.className = 'text-decoration-none text-primary';
+                responsibleLink.onclick = function(e) {
+                    e.preventDefault();
+                    showResponsibleModal(trigger);
+                };
+            } else if (responsibleLink) {
+                responsibleLink.textContent = '-';
+                responsibleLink.href = '#';
+                responsibleLink.onclick = null;
+            }
+
+            // Configurar switch de status
+            const statusSwitch = document.getElementById('alunoStatusSwitch');
+            const statusLabel = document.getElementById('alunoStatusLabel');
+            const statusCode = trigger.getAttribute('data-status-code') || '';
+            const switchContainer = document.getElementById('alunoStatusSwitchContainer');
+            const alunoId = trigger.getAttribute('data-id');
+            
+            if (statusSwitch && switchContainer) {
+                statusSwitch.checked = statusCode === 'A';
+                statusSwitch.dataset.alunoId = alunoId;
+                statusSwitch.dataset.originalStatus = statusCode;
+                
+                // Remover cores anteriores
+                switchContainer.classList.remove('text-success', 'text-danger');
+                
+                // Aplicar cor baseada no status
+                if (statusCode === 'A') {
+                    statusLabel.textContent = 'Ativo';
+                    switchContainer.classList.add('text-success');
+                } else if (statusCode === 'C') {
+                    statusLabel.textContent = 'Cancelado';
+                    switchContainer.classList.add('text-danger');
+                } else {
+                    statusLabel.textContent = 'Pendente';
+                }
+            }
 
             const modalBeltImage = document.getElementById('modalAlunoBeltImage');
             if (modalBeltImage) {
@@ -349,7 +461,110 @@
                 lastTrigger.focus();
             }
         });
+
+        // Listener para o switch de ativação/desativação
+        const statusSwitch = document.getElementById('alunoStatusSwitch');
+        if (statusSwitch) {
+            statusSwitch.addEventListener('change', async function() {
+                const alunoId = this.dataset.alunoId;
+                const originalStatus = this.dataset.originalStatus;
+                let newStatus;
+
+                // Determinar novo status baseado na ação do switch
+                if (this.checked) {
+                    newStatus = 'A'; // Checkbox marcado = Ativo
+                } else {
+                    newStatus = originalStatus === 'A' ? 'C' : 'A'; // Desmarcado
+                }
+
+                try {
+                    const response = await fetch(`/aluno/status/${alunoId}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ newStatus })
+                    });
+
+                    if (!response.ok) {
+                        const error = await response.json();
+                        throw new Error(error.error || 'Erro ao atualizar status');
+                    }
+
+                    const result = await response.json();
+                    
+                    // Fechar modal para recarregar dados
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('alunoModal'));
+                    if (modal) {
+                        modal.hide();
+                    }
+                    
+                    // Recarregar a página após 500ms para permitir o modal fechar
+                    setTimeout(() => {
+                        location.reload();
+                    }, 500);
+                } catch (error) {
+                    console.error('Erro:', error);
+                    alert('Erro ao atualizar status do aluno: ' + error.message);
+                    this.checked = originalStatus === 'A';
+                }
+            });
+        }
     })();
+
+    // Modal do responsável
+    function showResponsibleModal(trigger) {
+        const responsibleModal = document.getElementById('responsibleModal');
+        if (!responsibleModal) return;
+
+        const setText = (id, value) => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = value && String(value).trim() !== '' ? value : '-';
+            }
+        };
+
+        const responsibleName = trigger.getAttribute('data-responsible-name');
+        const responsibleEmail = trigger.getAttribute('data-responsible-email');
+        const responsibleRole = trigger.getAttribute('data-responsible-role') || '-';
+        const responsiblePhone = trigger.getAttribute('data-responsible-phone');
+        const responsibleBirth = trigger.getAttribute('data-responsible-birth');
+        const responsiblePhoto = trigger.getAttribute('data-responsible-photo') || '/uploads/users/default.jpg';
+        const responsibleBeltLabel = trigger.getAttribute('data-responsible-belt-label') || 'Faixa';
+        const responsibleBeltSummary = trigger.getAttribute('data-responsible-belt-summary');
+        const responsibleBeltImagePath = trigger.getAttribute('data-responsible-belt-image') || '/img/belts/white_0.png';
+        const responsibleBelt = trigger.getAttribute('data-responsible-belt') || 'white';
+        const responsibleWagi = trigger.getAttribute('data-responsible-wagi');
+        const responsibleZubon = trigger.getAttribute('data-responsible-zubon');
+        const responsibleObi = trigger.getAttribute('data-responsible-obi');
+
+        const modalPhoto = document.getElementById('modalResponsiblePhoto');
+        if (modalPhoto) {
+            modalPhoto.src = responsiblePhoto;
+            modalPhoto.alt = `Avatar de ${responsibleName || 'responsável'}`;
+        }
+
+        setText('modalResponsibleNome', responsibleName || '-');
+        setText('modalResponsibleEmail', responsibleEmail);
+        setText('modalResponsibleRole', responsibleRole);
+        setText('modalResponsiblePhone', responsiblePhone);
+        setText('modalResponsibleBirth', responsibleBirth);
+        setText('modalResponsibleBeltSummary', responsibleBeltSummary);
+        setText('modalResponsibleWagi', responsibleWagi);
+        setText('modalResponsibleZubon', responsibleZubon);
+        setText('modalResponsibleObi', responsibleObi);
+
+        const modalBeltImage = document.getElementById('modalResponsibleBeltImage');
+        if (modalBeltImage) {
+            modalBeltImage.onerror = function() {
+                this.onerror = null;
+                this.src = `/img/belts/${responsibleBelt}_0.png`;
+            };
+            modalBeltImage.src = responsibleBeltImagePath;
+            modalBeltImage.alt = `Faixa ${responsibleBeltLabel}`;
+        }
+
+        const bsModal = new bootstrap.Modal(responsibleModal);
+        bsModal.show();
+    }
 </script>
 
 <script>
