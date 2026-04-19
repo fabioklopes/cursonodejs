@@ -21,9 +21,39 @@ const TurmaAluno = require('./models/TurmaAluno');
 const MensagemProfessor = require('./models/MensagemProfessor');
 const MensagemProfessorOcultacao = require('./models/MensagemProfessorOcultacao');
 const MensagemProfessorLeitura = require('./models/MensagemProfessorLeitura');
+const MetaAula = require('./models/MetaAula');
+const MetaAulaTurma = require('./models/MetaAulaTurma');
 const { sequelize, Sequelize } = require('./models/db');
 const generatedCode = require('./utils/usercode_generator');
 const generateClassCode = require('./utils/classcode_generator');
+
+MetaAula.belongsTo(Usuario, {
+    as: 'criador',
+    foreignKey: 'created_by',
+    targetKey: 'user_code'
+});
+MetaAula.belongsToMany(Turma, {
+    through: MetaAulaTurma,
+    foreignKey: 'meta_id',
+    otherKey: 'class_code',
+    targetKey: 'class_code',
+    as: 'turmas'
+});
+Turma.belongsToMany(MetaAula, {
+    through: MetaAulaTurma,
+    foreignKey: 'class_code',
+    otherKey: 'meta_id',
+    sourceKey: 'class_code',
+    as: 'metas'
+});
+MetaAulaTurma.belongsTo(MetaAula, {
+    foreignKey: 'meta_id',
+    targetKey: 'id'
+});
+MetaAulaTurma.belongsTo(Turma, {
+    foreignKey: 'class_code',
+    targetKey: 'class_code'
+});
 
 // Usado apenas para o "Esqueci a minha senha"
 const crypto = require('crypto');
@@ -414,6 +444,20 @@ async function expireProfessorMessagesIfNeeded() {
             }
         }
     );
+}
+
+function formatDateForInput(dateValue) {
+    if (!dateValue) {
+        return '';
+    }
+
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) {
+        return '';
+    }
+
+    const pad = (value) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 async function getTurmasDisponiveisParaMensagem(usuarioSessao) {
@@ -1614,6 +1658,294 @@ app.get('/mensagens', async (req, res) => {
     }
 });
 
+app.get('/metasdeaula', async (req, res) => {
+    const usuarioSessao = req.session.usuario;
+    if (!usuarioSessao) {
+        return res.redirect('/dashboard');
+    }
+
+    try {
+        const isProfessorPage = hasProfessorAccess(usuarioSessao);
+        const isStudentPage = usuarioSessao.role === 'STD';
+
+        if (!isProfessorPage && !isStudentPage) {
+            const mensagem = 'Acesso restrito ao sistema.';
+            return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+        }
+
+        if (isProfessorPage) {
+            const turmas = await Turma.findAll({ where: { active: 'Y' }, order: [['class_name', 'ASC']] });
+            const turmasVm = turmas.map((turma) => turma.get({ plain: true }));
+            const where = {};
+            if (usuarioSessao.role !== 'ADM') {
+                where.created_by = usuarioSessao.user_code;
+            }
+
+            const metas = await MetaAula.findAll({
+                where,
+                include: [{ model: Turma, as: 'turmas', through: { attributes: [] } }],
+                order: [['createdAt', 'DESC']]
+            });
+
+            const metasVm = metas.map((meta) => {
+                const plain = meta.get({ plain: true });
+                const classesLabel = (plain.turmas || []).map((turma) => turma.class_name).join(', ') || '-';
+                
+                // Formatar datas
+                const startDateFormatted = plain.start_date ? new Date(plain.start_date).toLocaleDateString('pt-BR') : '-';
+                const endDateFormatted = plain.end_date ? new Date(plain.end_date).toLocaleDateString('pt-BR') : '-';
+                
+                return {
+                    ...plain,
+                    classesLabel,
+                    start_date: startDateFormatted,
+                    end_date: endDateFormatted,
+                    statusLabel: plain.status === 'A' ? 'Ativa' : 'Encerrada'
+                };
+            });
+
+            return res.render('metasdeaula', {
+                mensagem: req.query.mensagem || '',
+                tipoMensagem: req.query.tipo || 'info',
+                isProfessorPage: true,
+                turmas: turmasVm,
+                metas: metasVm
+            });
+        }
+
+        const turmasAluno = await TurmaAluno.findAll({
+            where: { user_code: usuarioSessao.user_code, active: 'Y' },
+            attributes: ['class_code']
+        });
+        const classCodes = [...new Set(turmasAluno.map((item) => item.class_code))].filter(Boolean);
+
+        console.log('=== DEBUG GET /metasdeaula (Aluno) ===');
+        console.log('Aluno:', usuarioSessao.user_code, usuarioSessao.first_name);
+        console.log('Turmas do aluno:', classCodes);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        console.log('Data de filtro (today):', today);
+
+        const pageSize = 10;
+        const currentPage = Math.max(1, parseInt(req.query.page, 10) || 1);
+        const offset = (currentPage - 1) * pageSize;
+
+        let metasResult = { count: 0, rows: [] };
+        if (classCodes.length > 0) {
+            metasResult = await MetaAula.findAndCountAll({
+                where: {
+                    status: 'A',
+                    end_date: {
+                        [Op.gte]: today
+                    }
+                },
+                include: [
+                    {
+                        model: Turma,
+                        as: 'turmas',
+                        through: { attributes: [] },
+                        where: { class_code: { [Op.in]: classCodes } }
+                    },
+                    {
+                        model: Usuario,
+                        as: 'criador',
+                        attributes: ['first_name', 'last_name']
+                    }
+                ],
+                order: [['start_date', 'ASC']],
+                limit: pageSize,
+                offset,
+                distinct: true,
+                raw: false
+            });
+        }
+
+        const totalMetas = metasResult.count || 0;
+        const totalPages = Math.max(1, Math.ceil(totalMetas / pageSize));
+        const currentPageSafe = Math.min(currentPage, totalPages);
+        const pageNumbers = totalPages > 1 ? Array.from({ length: totalPages }, (_, index) => index + 1) : [];
+        const metas = metasResult.rows || [];
+
+        console.log('Metas encontradas:', totalMetas);
+        if (metas.length > 0) {
+            console.log('Primeira meta:', metas[0].dataValues);
+        }
+
+        const metasVm = metas.map((meta) => {
+            const plain = meta.get({ plain: true });
+            const classesLabel = (plain.turmas || []).map((turma) => turma.class_name).join(', ') || '-';
+            
+            // Formatar datas
+            const startDateFormatted = plain.start_date ? new Date(plain.start_date).toLocaleDateString('pt-BR') : '-';
+            const endDateFormatted = plain.end_date ? new Date(plain.end_date).toLocaleDateString('pt-BR') : '-';
+            
+            return {
+                ...plain,
+                classesLabel,
+                start_date: startDateFormatted,
+                end_date: endDateFormatted
+            };
+        });
+
+        return res.render('metasdeaula', {
+            mensagem: req.query.mensagem || '',
+            tipoMensagem: req.query.tipo || 'info',
+            isProfessorPage: false,
+            metas: metasVm,
+            currentPage: currentPageSafe,
+            totalPages,
+            pageNumbers,
+            prevPage: Math.max(1, currentPageSafe - 1),
+            nextPage: Math.min(totalPages, currentPageSafe + 1)
+        });
+    } catch (err) {
+        console.error('Erro ao carregar metas para aluno:', err);
+        return res.render('metasdeaula', {
+            mensagem: 'Erro ao carregar metas de aula: ' + err.message,
+            tipoMensagem: 'danger',
+            isProfessorPage: hasProfessorAccess(req.session.usuario),
+            turmas: [],
+            metas: []
+        });
+    }
+});
+
+app.post('/metasdeaula', async (req, res) => {
+    if (!hasProfessorAccess(req.session.usuario)) {
+        const mensagem = 'Acesso restrito a professor e administrador.';
+        return res.redirect(`/dashboard?mensagem=${encodeURIComponent(mensagem)}`);
+    }
+
+    try {
+        const title = String(req.body.title || '').trim();
+        const description = String(req.body.description || '').trim();
+        const startDate = String(req.body.start_date || '').trim();
+        const endDate = String(req.body.end_date || '').trim();
+        const sendNotice = String(req.body.send_notice || 'no').trim().toLowerCase();
+        const rawClassCodes = Array.isArray(req.body.class_codes)
+            ? req.body.class_codes
+            : req.body.class_codes
+                ? [req.body.class_codes]
+                : [];
+
+        const classCodes = [...new Set(rawClassCodes.map((item) => String(item || '').trim().toUpperCase()).filter(Boolean))];
+
+        if (!title) {
+            throw new Error('Informe o título da meta de aula.');
+        }
+        if (title.length > 50) {
+            throw new Error('Título deve ter no máximo 50 caracteres.');
+        }
+        if (!description) {
+            throw new Error('Informe a descrição da meta de aula.');
+        }
+        if (!startDate) {
+            throw new Error('Informe a data de início da meta.');
+        }
+        if (!endDate) {
+            throw new Error('Informe a data de término da meta.');
+        }
+        const startDateValue = new Date(startDate);
+        const endDateValue = new Date(endDate);
+        if (Number.isNaN(startDateValue.getTime())) {
+            throw new Error('Data de início inválida.');
+        }
+        if (Number.isNaN(endDateValue.getTime())) {
+            throw new Error('Data de término inválida.');
+        }
+        if (startDateValue > endDateValue) {
+            throw new Error('A data de início deve ser anterior ou igual à data de término.');
+        }
+        if (classCodes.length === 0) {
+            throw new Error('Selecione pelo menos uma turma para aplicar a meta.');
+        }
+
+        const activeTurmas = await Turma.findAll({ where: { active: 'Y' }, attributes: ['class_code'] });
+        const allowedCodes = new Set(activeTurmas.map((item) => item.class_code));
+        const invalidClass = classCodes.some((code) => !allowedCodes.has(code));
+        if (invalidClass) {
+            throw new Error('Uma ou mais turmas selecionadas não estão disponíveis.');
+        }
+
+        const metasAtivas = await MetaAula.findAll({ where: { status: 'A' }, attributes: ['title'] });
+        const hasSimilarTitle = metasAtivas.some((meta) => areClassNamesTooSimilar(meta.title, title));
+        if (hasSimilarTitle) {
+            throw new Error('Já existe uma meta com nome igual ou muito parecido. Use um nome diferente.');
+        }
+
+        const meta = await MetaAula.create({
+            title,
+            description,
+            start_date: startDate,
+            end_date: endDate,
+            created_by: req.session.usuario.user_code,
+            status: 'A'
+        });
+
+        await MetaAulaTurma.bulkCreate(classCodes.map((classCode) => ({
+            meta_id: meta.id,
+            class_code: classCode
+        })));
+
+        let mensagem = 'Meta de aula criada com sucesso.';
+        let tipo = 'success';
+
+        if (sendNotice === 'yes') {
+            const expiresAt = new Date(`${endDate}T23:59:59`);
+            const noticePayload = classCodes.map((classCode) => ({
+                title: 'Nova meta de aula',
+                content: `Uma nova meta de aula foi criada pelo professor ${req.session.usuario.first_name || ''} ${req.session.usuario.last_name || ''}. Fique ligado(a)!`,
+                class: classCode,
+                created_by: req.session.usuario.user_code,
+                expires_at: expiresAt,
+                status: 'A'
+            }));
+
+            try {
+                const novasMensagens = await MensagemProfessor.bulkCreate(noticePayload);
+                
+                // Buscar todos os alunos das turmas selecionadas
+                const enrollments = await TurmaAluno.findAll({
+                    where: { class_code: { [Op.in]: classCodes }, active: 'Y' },
+                    attributes: ['user_code']
+                });
+                const studentUserCodes = [...new Set(enrollments.map((e) => e.user_code))].filter(Boolean);
+
+                // Criar registros de "não lida" para cada aluno em cada mensagem
+                if (studentUserCodes.length > 0 && novasMensagens.length > 0) {
+                    const leituraPayload = [];
+                    novasMensagens.forEach((msg) => {
+                        studentUserCodes.forEach((userCode) => {
+                            leituraPayload.push({
+                                message_id: msg.id,
+                                user_code: userCode,
+                                viewed_at: null
+                            });
+                        });
+                    });
+                    
+                    try {
+                        await MensagemProfessorLeitura.bulkCreate(leituraPayload);
+                    } catch (leituraError) {
+                        console.error('Erro ao marcar mensagens como não-lidas:', leituraError);
+                    }
+                }
+                
+                mensagem += ' Aviso enviado aos alunos matriculados.';
+            } catch (noticeError) {
+                console.error('Erro ao enviar aviso:', noticeError);
+                mensagem += ' Não foi possível enviar o aviso aos alunos.';
+                tipo = 'warning';
+            }
+        }
+
+        return res.redirect(`/metasdeaula?mensagem=${encodeURIComponent(mensagem)}&tipo=${tipo}`);
+    } catch (err) {
+        return res.redirect(`/metasdeaula?mensagem=${encodeURIComponent(err.message)}&tipo=danger`);
+    }
+});
+
 app.post('/mensagens', async (req, res) => {
     if (!hasProfessorAccess(req.session.usuario)) {
         const mensagem = 'Acesso restrito a professor e administrador.';
@@ -1690,7 +2022,34 @@ app.post('/mensagens', async (req, res) => {
             status: 'A'
         }));
 
-        await MensagemProfessor.bulkCreate(payload);
+        const novasMensagens = await MensagemProfessor.bulkCreate(payload);
+        
+        // Buscar todos os alunos das turmas selecionadas e marcar mensagens como não-lidas
+        const enrollments = await TurmaAluno.findAll({
+            where: { class_code: { [Op.in]: classCodes }, active: 'Y' },
+            attributes: ['user_code']
+        });
+        const studentUserCodes = [...new Set(enrollments.map((e) => e.user_code))].filter(Boolean);
+
+        if (studentUserCodes.length > 0 && novasMensagens.length > 0) {
+            const leituraPayload = [];
+            novasMensagens.forEach((msg) => {
+                studentUserCodes.forEach((userCode) => {
+                    leituraPayload.push({
+                        message_id: msg.id,
+                        user_code: userCode,
+                        viewed_at: null
+                    });
+                });
+            });
+            
+            try {
+                await MensagemProfessorLeitura.bulkCreate(leituraPayload);
+            } catch (leituraError) {
+                console.error('Erro ao marcar mensagens como não-lidas:', leituraError);
+            }
+        }
+
         req.session.lastMassMessageSubmission = {
             key: submissionKey,
             at: Date.now()
@@ -1789,7 +2148,7 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
 
         const additionalClassCodes = classCodes.slice(1);
         if (additionalClassCodes.length > 0) {
-            await MensagemProfessor.bulkCreate(
+            const additionalMensagens = await MensagemProfessor.bulkCreate(
                 additionalClassCodes.map((classCode) => ({
                     title,
                     content,
@@ -1799,6 +2158,32 @@ app.post('/mensagens/:id/reativar', async (req, res) => {
                     status: 'A'
                 }))
             );
+
+            // Marcar mensagens replicadas como não-lidas para todos os alunos
+            const enrollments = await TurmaAluno.findAll({
+                where: { class_code: { [Op.in]: additionalClassCodes }, active: 'Y' },
+                attributes: ['user_code']
+            });
+            const studentUserCodes = [...new Set(enrollments.map((e) => e.user_code))].filter(Boolean);
+
+            if (studentUserCodes.length > 0) {
+                const leituraPayload = [];
+                additionalMensagens.forEach((msg) => {
+                    studentUserCodes.forEach((userCode) => {
+                        leituraPayload.push({
+                            message_id: msg.id,
+                            user_code: userCode,
+                            viewed_at: null
+                        });
+                    });
+                });
+                
+                try {
+                    await MensagemProfessorLeitura.bulkCreate(leituraPayload);
+                } catch (leituraError) {
+                    console.error('Erro ao marcar mensagens replicadas como não-lidas:', leituraError);
+                }
+            }
         }
 
         const mensagem = classCodes.length > 1
@@ -3794,6 +4179,7 @@ app.set('view engine', 'handlebars');
 
 app.set('views', path.join(__dirname, 'views'));
 
+
 // execução do servidor
 const PORT = process.env.ENV_PORT || 3000;
 ensureUsuarioEmailNotUnique()
@@ -3803,7 +4189,8 @@ ensureUsuarioEmailNotUnique()
     .then(() => {
         app.listen(PORT, function () {
             console.clear();
-            console.log('Servidor funcionando...');
+            console.log('');
+            console.log('\n\nServidor funcionando...');
             console.log(`Acesse http://localhost:${PORT} para ver o app.`);
         });
     })

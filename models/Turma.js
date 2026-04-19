@@ -10,7 +10,7 @@ const Turma = db.sequelize.define('tb_turmas', {
     class_code: {
         type: db.Sequelize.STRING(5),
         allowNull: false,
-        unique: true
+        primaryKey: true
     },
     created_by: {
         type: db.Sequelize.STRING(5),
@@ -21,6 +21,8 @@ const Turma = db.sequelize.define('tb_turmas', {
         allowNull: false,
         defaultValue: 'Y'
     }
+}, {
+    timestamps: true
 });
 
 Turma.associate = (models) => {

@@ -1,0 +1,313 @@
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h1 class="mb-0">Metas</h1>
+    {{#if isProfessorPage}}
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalNovaMetaAula">
+        <i class="fa-solid fa-plus"></i> Nova meta
+    </button>
+    {{/if}}
+</div>
+
+{{#if mensagem}}
+<div class="alert alert-{{tipoMensagem}} alert-autodismiss" role="alert">
+    {{#if (eq tipoMensagem 'danger')}}<i class="fa-solid fa-circle-xmark"></i>{{else}}<i class="fa-solid fa-circle-check"></i>{{/if}} {{mensagem}}
+</div>
+{{/if}}
+
+{{#if isProfessorPage}}
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        {{#if metas.length}}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Título</th>
+                        <th scope="col">Descrição</th>
+                        <th scope="col">Turmas</th>
+                        <th scope="col">Início</th>
+                        <th scope="col">Término</th>
+                        <th scope="col">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{#each metas}}
+                    <tr>
+                        <td><strong>{{title}}</strong></td>
+                        <td>{{description}}</td>
+                        <td>{{classesLabel}}</td>
+                        <td>{{start_date}}</td>
+                        <td>{{end_date}}</td>
+                        <td><span class="badge bg-{{#if (eq status 'A')}}success{{else}}secondary{{/if}}">{{statusLabel}}</span></td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+        {{else}}
+        <p class="text-body-secondary mb-0">Nenhuma meta de aula criada ainda.</p>
+        {{/if}}
+    </div>
+</div>
+
+<div class="modal fade" id="modalNovaMetaAula" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <form method="POST" action="/metasdeaula" id="formNovaMetaAula">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fa-solid fa-award"></i> Nova meta de aula</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancelar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="metaTitle" class="form-label">Título da meta</label>
+                        <input type="text" id="metaTitle" name="title" class="form-control" maxlength="50" required>
+                        <div class="form-text">Máximo de 50 caracteres.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="metaDescription" class="form-label">Descrição da meta</label>
+                        <textarea id="metaDescription" name="description" class="form-control" rows="4" required></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label class="form-label mb-0">Selecione as turmas</label>
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="selectAllTurmas">Selecionar todas</button>
+                        </div>
+                        <div class="meta-turma-picker">
+                            {{#each turmas}}
+                            <label class="meta-turma-card">
+                                <input class="form-check-input meta-turma-checkbox" type="checkbox" name="class_codes" value="{{class_code}}">
+                                <span class="meta-turma-content">
+                                    <span class="meta-turma-name">{{class_name}}</span>
+                                </span>
+                            </label>
+                            {{/each}}
+                        </div>
+                        <div class="form-text">Marque uma ou mais turmas ativas para aplicar essa meta.</div>
+                    </div>
+
+                    <div class="row gy-3">
+                        <div class="col-md-6">
+                            <label for="metaStartDate" class="form-label">Data de início</label>
+                            <input type="date" id="metaStartDate" name="start_date" class="form-control" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="metaEndDate" class="form-label">Data de término</label>
+                            <input type="date" id="metaEndDate" name="end_date" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="sendNoticeCheckbox" checked>
+                            <label class="form-check-label" for="sendNoticeCheckbox">
+                                Enviar aviso aos alunos matriculados
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar meta de aula</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .meta-turma-picker {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .meta-turma-card {
+        display: flex;
+        align-items: center;
+        padding: 0.75rem;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .meta-turma-card:hover {
+        border-color: #0d6efd;
+        background-color: #f0f6ff;
+    }
+
+    .meta-turma-card input {
+        flex-shrink: 0;
+    }
+
+    .meta-turma-card input:checked ~ .meta-turma-content {
+        font-weight: 600;
+        color: #0d6efd;
+    }
+
+    .meta-turma-content {
+        margin-left: 0.5rem;
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .meta-turma-name {
+        display: block;
+        font-size: 0.9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+</style>
+
+<script>
+    document.getElementById('selectAllTurmas')?.addEventListener('click', function (e) {
+        e.preventDefault();
+        const checkboxes = document.querySelectorAll('.meta-turma-checkbox');
+        checkboxes.forEach((checkbox) => checkbox.checked = true);
+    });
+
+    document.getElementById('formNovaMetaAula')?.addEventListener('submit', function (e) {
+        const sendNoticeCheckbox = document.getElementById('sendNoticeCheckbox');
+        const noticeInput = document.createElement('input');
+        noticeInput.type = 'hidden';
+        noticeInput.name = 'send_notice';
+        noticeInput.value = sendNoticeCheckbox?.checked ? 'yes' : 'no';
+        this.appendChild(noticeInput);
+    });
+</script>
+
+{{else}}
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-light">
+        <h5 class="mb-0"><i class="fa-solid fa-award"></i> Metas de aula disponíveis</h5>
+    </div>
+    <div class="card-body">
+        {{#if metas.length}}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                </thead>
+                <tbody>
+                    {{#each metas}}
+                    <tr
+                        class="meta-row-clickable"
+                        role="button"
+                        tabindex="0"
+                        data-meta-id="{{id}}"
+                        data-meta-title="{{title}}"
+                        data-meta-description="{{description}}"
+                        data-meta-professor="{{#if criador}}{{criador.first_name}} {{criador.last_name}}{{else}}-{{/if}}"
+                        data-meta-inicio="{{start_date}}"
+                        data-meta-termino="{{end_date}}"
+                    >
+                        <td><strong>{{title}}</strong></td>
+                    </tr>
+                    {{/each}}
+                </tbody>
+            </table>
+        </div>
+
+        {{#if pageNumbers.length}}
+        <nav aria-label="Paginação de metas">
+            <ul class="pagination justify-content-center mt-3 mb-0">
+                <li class="page-item {{#if (eq currentPage 1)}}disabled{{/if}}">
+                    <a class="page-link" href="/metasdeaula?page={{prevPage}}" aria-label="Anterior">Anterior</a>
+                </li>
+                {{#each pageNumbers}}
+                <li class="page-item {{#if (eq this ../currentPage)}}active{{/if}}">
+                    <a class="page-link" href="/metasdeaula?page={{this}}">{{this}}</a>
+                </li>
+                {{/each}}
+                <li class="page-item {{#if (eq currentPage totalPages)}}disabled{{/if}}">
+                    <a class="page-link" href="/metasdeaula?page={{nextPage}}" aria-label="Próximo">Próximo</a>
+                </li>
+            </ul>
+        </nav>
+        {{/if}}
+
+        {{else}}
+        <p class="text-body-secondary mb-0">Nenhuma meta de aula disponível para suas turmas no momento.</p>
+        {{/if}}
+    </div>
+</div>
+
+<div class="modal fade" id="modalDetalheMetaAluno" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="metaTitleModal"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <div id="metaDescriptionModal" class="mb-3"></div>
+                <div class="text-body-secondary small">
+                    <p class="mb-2">
+                        <strong>Criado por:</strong> <span id="metaProfessorModal"></span>
+                    </p>
+                    <p class="mb-2">
+                        <strong>Início:</strong> <span id="metaInicioModal"></span>
+                    </p>
+                    <p class="mb-0">
+                        <strong>Término:</strong> <span id="metaTerminoModal"></span>
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .meta-row-clickable {
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+    }
+
+    .meta-row-clickable:hover {
+        background-color: #f8f9fa;
+    }
+
+    .meta-row-clickable:focus {
+        outline: 2px solid #0d6efd;
+        outline-offset: -2px;
+    }
+</style>
+
+<script>
+    document.querySelectorAll('.meta-row-clickable').forEach((row) => {
+        row.addEventListener('click', function () {
+            const title = this.dataset.metaTitle;
+            const description = this.dataset.metaDescription;
+            const professor = this.dataset.metaProfessor;
+            const inicio = this.dataset.metaInicio;
+            const termino = this.dataset.metaTermino;
+
+            document.getElementById('metaTitleModal').textContent = title;
+            document.getElementById('metaDescriptionModal').textContent = description;
+            document.getElementById('metaProfessorModal').textContent = professor;
+            document.getElementById('metaInicioModal').textContent = inicio;
+            document.getElementById('metaTerminoModal').textContent = termino;
+
+            const modal = new bootstrap.Modal(document.getElementById('modalDetalheMetaAluno'));
+            modal.show();
+        });
+
+        row.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                this.click();
+            }
+        });
+    });
+</script>
+{{/if}}
+

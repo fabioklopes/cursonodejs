@@ -12,8 +12,8 @@ const MensagemProfessorLeitura = db.sequelize.define('tb_mensagens_professores_l
     },
     viewed_at: {
         type: db.Sequelize.DATE,
-        allowNull: false,
-        defaultValue: db.Sequelize.NOW
+        allowNull: true,
+        defaultValue: null
     }
 }, {
     indexes: [
