@@ -2760,7 +2760,7 @@ app.get('/aluno/novo', async (req, res) => {
 
 app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
     // Função para renderizar o formulário com dados preservados em caso de erro
-    const renderFormWithError = async (errorMessage, fieldErrors = {}) => {
+    const renderFormWithError = async (errorMessage, fieldErrors = {}, tipoMensagem = 'erro') => {
         const responsibleId = req.body.responsible_id ? parseInt(req.body.responsible_id, 10) : null;
         const turmaOptions = await getActiveTurmasOptions(req.body.class_code || '');
 
@@ -2794,7 +2794,7 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
             kimonoSizeOptions: KIMONO_WAGI_ZUBON_SIZE_OPTIONS,
             obiSizeOptions: OBI_SIZE_OPTIONS,
             mensagem: errorMessage,
-            tipoMensagem: 'erro',
+            tipoMensagem,
             camposErro: fieldErrors,
             metaTitle: 'Solicitar Acesso | Novo Aluno CRTN Belém',
             metaDescription: 'Cadastre-se como novo aluno no sistema CRTN Belém para acompanhamento de turmas, presenças e metas.',
@@ -2855,6 +2855,28 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
         const isDependent = !!responsibleId;
         const classCode = String(req.body.class_code || '').trim().toUpperCase();
         let titular = null;
+
+        // Cadastro de titular: um mesmo e-mail só pode ter 1 titular no sistema.
+        if (!isDependent) {
+            const emailInformado = normalizeEmail(req.body.email);
+            const titularExistente = await Usuario.findOne({
+                where: { email: emailInformado, responsible_id: null }
+            });
+
+            if (titularExistente) {
+                if (req.file) {
+                    const tempFilePath = path.join(uploadsDir, req.file.filename);
+                    if (fs.existsSync(tempFilePath)) {
+                        await fs.promises.unlink(tempFilePath);
+                    }
+                }
+                const avisoEmail = titularExistente.user_status === 'P'
+                    ? 'Este e-mail já está cadastrado e aguardando aprovação de um professor.'
+                    : 'Este e-mail já está cadastrado no sistema.';
+                return renderFormWithError(avisoEmail, { email: avisoEmail }, 'desconformidade');
+            }
+        }
+
         const beltDegreeValidation = validateBeltAndDegree(req.body.actual_belt, req.body.actual_degree);
         const turmaSelecionada = classCode
             ? await Turma.findOne({ where: { class_code: classCode, active: 'Y' } })
@@ -2953,9 +2975,9 @@ app.post('/aluno/cadastrar', upload.single('photo'), async (req, res) => {
 
         const passwordHash = await argon2.hash(senha);
 
-        let emailFinal = (req.body.email || '').trim().toLowerCase();
+        let emailFinal = normalizeEmail(req.body.email);
         if (isDependent) {
-            emailFinal = (titular.email || '').trim().toLowerCase();
+            emailFinal = normalizeEmail(titular.email);
         }
 
         const firstNameFinal = normalizePersonName(req.body.first_name);
