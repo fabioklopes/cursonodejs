@@ -795,7 +795,7 @@
     }
     function limitIso() {
         const d = new Date(now);
-        d.setDate(d.getDate() - 15);
+        d.setDate(d.getDate() - 7);
         return toIso(d.getFullYear(), d.getMonth(), d.getDate());
     }
     function hasActivePresence(iso) {

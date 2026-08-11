@@ -5060,7 +5060,7 @@ app.post('/presenca/solicitar', async (req, res) => {
         const todayBrYmd = moment().utcOffset(PRESENCA_BR_UTC_OFFSET_MIN).format('YYYY-MM-DD');
         const limitBrYmd = moment()
             .utcOffset(PRESENCA_BR_UTC_OFFSET_MIN)
-            .subtract(15, 'days')
+            .subtract(7, 'days')
             .format('YYYY-MM-DD');
         const results = [];
         const errors = [];
@@ -5077,7 +5077,7 @@ app.post('/presenca/solicitar', async (req, res) => {
             if (dateStr < limitBrYmd) {
                 errors.push({
                     date: dateStr,
-                    error: `Anterior ao limite de 15 dias (${moment(limitBrYmd, 'YYYY-MM-DD').format('DD/MM/YYYY')}).`
+                    error: `Anterior ao limite de 7 dias (${moment(limitBrYmd, 'YYYY-MM-DD').format('DD/MM/YYYY')}).`
                 });
                 continue;
             }
