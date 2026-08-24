@@ -1148,11 +1148,11 @@ app.get('/metasdeaula', async (req, res) => {
                 const classesLabel = (plain.turmas || []).map((turma) => turma.class_name).join(', ') || '-';
                 
                 // Formatar datas
-                const startDateFormatted = plain.start_date ? new Date(plain.start_date).toLocaleDateString('pt-BR') : '-';
-                const endDateFormatted = plain.end_date ? new Date(plain.end_date).toLocaleDateString('pt-BR') : '-';
-                const examStartDateFormatted = plain.exam_start_date ? new Date(plain.exam_start_date).toLocaleDateString('pt-BR') : '-';
-                const examEndDateFormatted = plain.exam_end_date ? new Date(plain.exam_end_date).toLocaleDateString('pt-BR') : '-';
-                
+                const startDateFormatted = formatDateBrFromYmd(plain.start_date);
+                const endDateFormatted = formatDateBrFromYmd(plain.end_date);
+                const examStartDateFormatted = formatDateBrFromYmd(plain.exam_start_date);
+                const examEndDateFormatted = formatDateBrFromYmd(plain.exam_end_date);
+
                 return {
                     ...plain,
                     classesLabel,
@@ -1238,10 +1238,10 @@ app.get('/metasdeaula', async (req, res) => {
             const classesLabel = (plain.turmas || []).map((turma) => turma.class_name).join(', ') || '-';
             
             // Formatar datas
-            const startDateFormatted = plain.start_date ? new Date(plain.start_date).toLocaleDateString('pt-BR') : '-';
-            const endDateFormatted = plain.end_date ? new Date(plain.end_date).toLocaleDateString('pt-BR') : '-';
-            const examStartDateFormatted = plain.exam_start_date ? new Date(plain.exam_start_date).toLocaleDateString('pt-BR') : '-';
-            const examEndDateFormatted = plain.exam_end_date ? new Date(plain.exam_end_date).toLocaleDateString('pt-BR') : '-';
+            const startDateFormatted = formatDateBrFromYmd(plain.start_date);
+            const endDateFormatted = formatDateBrFromYmd(plain.end_date);
+            const examStartDateFormatted = formatDateBrFromYmd(plain.exam_start_date);
+            const examEndDateFormatted = formatDateBrFromYmd(plain.exam_end_date);
 
             const totalClasses = Number(plain.total_classes) || 0;
             const minClasses = Number(plain.min_classes) || 0;
