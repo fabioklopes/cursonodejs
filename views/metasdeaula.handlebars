@@ -134,7 +134,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <div class="modal fade" id="modalNovaMetaAula" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down modal-lg">
         <div class="modal-content">
             <form method="POST" action="/metasdeaula" id="formNovaMetaAula">
                 {{#if returnTo}}
@@ -220,8 +220,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary mb-3" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="submit" class="btn btn-primary mb-3">Criar meta de aula</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Criar meta de aula</button>
                 </div>
             </form>
         </div>
@@ -229,11 +229,6 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <style>
-    #modalNovaMetaAula .modal-body {
-        max-height: calc(100vh - 220px);
-        overflow-y: auto;
-    }
-
     .meta-turma-picker {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

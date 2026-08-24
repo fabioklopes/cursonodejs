@@ -112,6 +112,8 @@
 
             /* Modais com static backdrop não devem “tomar” header/footer */
             .modal {
+                /* dvh acompanha a altura real visível no mobile (sem contar a barra de endereço/teclado) */
+                height: 100dvh;
                 padding-top: calc(var(--app-header-height) + 0.75rem);
                 padding-bottom: calc(var(--app-footer-height) + 0.75rem);
             }
@@ -122,12 +124,18 @@
             }
 
             .modal-content {
-                max-height: calc(100vh - var(--app-header-height) - var(--app-footer-height) - 1.5rem);
+                max-height: calc(100dvh - var(--app-header-height) - var(--app-footer-height) - 1.5rem);
                 overflow: hidden;
             }
 
             .modal-body {
                 overflow: auto;
+                min-height: 0;
+            }
+
+            /* <form> dentro do modal-content não deve quebrar o layout flex (header/body/footer) */
+            .modal-content > form {
+                display: contents;
             }
 
             .student-message-bell-link {
